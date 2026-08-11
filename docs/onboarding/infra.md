@@ -1,0 +1,80 @@
+# Onboarding: infra / platform
+
+For whoever runs the collector, backend store, and estate-wide instrumentation config. Not for service integration ([`integration.md`](./integration.md)) or library development ([`developer.md`](./developer.md)).
+
+## Mental model first
+
+Three enforcement points, default deny at each ([ADR-0003](../adr/0003-runtime-allowlist-at-source.md), [ADR-0009](../adr/0009-governing-agent-instrumented-services.md)):
+
+1. **Analyzer** at build — catches ungoverned attribute keys in code you don't own.
+2. **Library** before export — runtime allowlist, source redaction (e.g. CouchDB URLs).
+3. **Collector** before storage — the only control that reaches processes containing none of our code (the "agent path", auto-instrumented .NET Framework services). This must be **fail-closed**: an ungoverned service exports nothing rather than exporting ungoverned data. That's deliberate — it converts an invisible compliance gap into a visible coverage gap you already have a detector for.
+
+You are the last line for anything not source-controlled. Nothing reaches storage without your policy applying to it.
+
+## What you own
+
+- Collector deployment and config (`deploy/collector/`, `deploy/docker-compose.yaml` for demo shape — **not** the production shape, see below).
+- Collector-side redaction/allowlist enforcement matching the declared policy (see `contract.sh` in the verification table — proves collector policy and the declared allowlist express the *same* rules; not written yet, so today this is a manual check against `docs/allowlist.md`).
+- Free-text scanning at the collector — interpolated log strings are banned at build (ADR-0004) but the collector is the backstop for anything that slips through.
+- Agent-path governance: for .NET Framework services with no package reference, MSI auto-instrumentation + `Register-OpenTelemetryForIIS` + per-app-pool env vars is host config you run, and the collector is the *only* place their telemetry gets governed.
+- Estate inventory / coverage denominator: the service register is the coverage denominator ([ADR-0021](../adr/0021-service-register-is-the-coverage-denominator.md)) — reconciled against reality, not aspirational.
+
+## Protocol and ports
+
+- **OTLP http/protobuf on 4318.** Port 4317 (gRPC) is deliberately closed estate-wide — gRPC is unsupported on the .NET Framework 4.8 target, so services never send it. Don't open 4317 "just in case."
+
+## Demo infra (what exists today)
+
+`deploy/docker-compose.yaml` — NATS (JetStream flag on, but demo only uses core NATS — no redelivery), CouchDB, and the collector. SigNoz is deliberately **not** in this compose file (avoids drift from upstream) — start it from its own repo first, then this stack, on a shared `observability` docker network you create yourself:
+
+```sh
+docker network create observability
+git clone -b main https://github.com/SigNoz/signoz.git
+cd signoz/deploy/docker && docker compose up -d && cd -
+docker compose -f deploy/docker-compose.yaml up -d
+```
+
+🔒 This compose file is explicitly dummy-data-only: no allowlist enforcement exists yet against it (ADR-0022), and it ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — sampling is 1.0, there's no auth hardening, no fail-closed collector policy applied yet.
+
+## Sampling and boot-failure behavior
+
+Absent sampler config is a **production boot failure** by design ([ADR-0010](../adr/0010-sampling-defaults.md)) — a service won't silently start with a wrong/no sampling rate outside Development. If a service fails to boot citing `SamplingRatio`, that's the library working as intended, not a bug to route around — the service team needs to set it, not you.
+
+Telemetry itself must never fail a business request (Rev 3 I3.6) — batch export only, bounded timeouts, no synchronous flush on the request path. Any control that would cost unbounded work on the request path belongs at the collector, not in-process. If you're asked to add a synchronous check into a service's request path for governance reasons, that's the wrong layer — push it to collector config instead.
+
+## Governance source of truth
+
+The allowlist is declared as assembly attributes in policy packs, read by both analyzer and runtime — no separate manifest, nothing to drift ([ADR-0017](../adr/0017-allowlist-declared-as-assembly-attributes.md)). Your collector-side rules need to express the *same* families/carve-outs as `docs/allowlist.md`. When that doc changes, your collector config changes in the same review — don't let them diverge silently.
+
+Data classes 3 (restricted PII) and 4 (secrets) must appear **nowhere** — not even reaching the collector is the goal, but collector-side scanning is still the backstop for anything a source-side control misses (e.g. free text, per ADR-0004).
+
+## Verification you're responsible for
+
+| Script | Proves | Status |
+|---|---|---|
+| `check.sh` | build/format only, not infra | exists |
+| `test-fast.sh` | unit tests only | exists |
+| `test-full.sh` | above + `otelcol validate` on collector config | **not yet written** |
+| `contract.sh` | collector policy and declared allowlist express the same rules | **not yet written** |
+| `e2e.sh` | assertions against *received* telemetry, not configuration — required because Rev 3 Gate 3 needs redaction verified against stored data, not intent | **not yet written** |
+
+Until these exist, verifying collector config is manual: apply it, send a real span through the demo stack, inspect what actually lands in the store. Don't claim redaction or allowlist enforcement is "in place" from reading config alone — that's exactly the gap `e2e.sh` exists to close later.
+
+## Manual verification checklist (today)
+
+1. Collector logs show received spans (port 4318)
+2. One service reaches the backend end to end
+3. Two services show up on one trace (HTTP propagation across the hop)
+4. A message hop (NATS) lands on the same trace — most likely failure point
+5. Inspect a stored CouchDB-touching span: `url.full` should show the redacted path, not the raw document ID — exact-host-match redaction **fails open**, so a wrong host list means silent non-redaction, not an error
+6. Query by `correlation.id` and confirm the whole workflow assembles — this is the actual deliverable, not span count
+
+## Reading before touching production shape
+
+- `docs/adr/0009-governing-agent-instrumented-services.md` — agent path governance
+- `docs/adr/0010-sampling-defaults.md` — sampling boot-failure rule
+- `docs/adr/0021-service-register-is-the-coverage-denominator.md` — coverage math
+- `docs/adr/0023-couchdb-changes-the-database-surface.md` — why CouchDB URL is the risk surface, not statement text
+- `docs/allowlist.md`, `docs/diagnostic-queries.md` — the two documents your config must stay in sync with
+- `docs/open-questions.md` — check before assuming a production collector policy is fully specified; regulatory/SSO decisions are still open and gate parts of this
