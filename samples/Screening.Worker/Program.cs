@@ -1,4 +1,5 @@
 using NATS.Client.Core;
+using NATS.Client.Serializers.Json;
 using Raksawi.Observability;
 using Screening.Domain;
 using Screening.Worker;
@@ -22,10 +23,23 @@ builder.AddRaksawiObservability(o =>
 builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsOpts
 {
     Url = builder.Configuration["Nats:Url"] ?? "nats://localhost:4222",
+    // Default serializer only handles primitives/strings — consuming a
+    // record without this throws NatsException at every message.
+    SerializerRegistry = NatsJsonSerializerRegistry.Default,
 }));
 
 builder.Services.AddHttpClient<ApplicationRepository>(client =>
-    client.BaseAddress = new Uri(couchDbUrl));
+{
+    // HttpClient ignores userinfo embedded in a URI (RFC 3986 §3.2.1 is not
+    // honoured), so credentials in couchDbUrl need an explicit header.
+    var couchDbUri = new Uri(couchDbUrl);
+    client.BaseAddress = new Uri(couchDbUri.GetLeftPart(UriPartial.Authority));
+    if (!string.IsNullOrEmpty(couchDbUri.UserInfo))
+    {
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(couchDbUri.UserInfo)));
+    }
+});
 
 // Scoped, not singleton. It depends on a typed HttpClient, and a singleton
 // holding one pins a single handler forever — DNS changes stop being noticed.

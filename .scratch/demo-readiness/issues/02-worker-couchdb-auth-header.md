@@ -1,4 +1,4 @@
-Status: open
+Status: closed
 
 # Screening.Worker: CouchDB calls 401 — same userinfo/BaseAddress bug as the API
 
@@ -22,11 +22,12 @@ Issue 01's verification only exercised `Screening.Api`'s own CouchDB calls
 because the NATS publish step fails first (see issue 03), so the worker's
 consumer loop never got a message to try processing.
 
-## What to do
+## Fixed (2026-08-11)
 
-Apply the same fix as `samples/Screening.Api/Program.cs`: strip userinfo from
-`BaseAddress`, set `Authorization: Basic …` explicitly. Then re-run the full
-happy path (`app-1001` through both services) once issue 03 is also fixed, to
-confirm the worker's CouchDB reads/writes succeed.
+Applied the same fix as `samples/Screening.Api/Program.cs`: strip userinfo
+from `BaseAddress`, set `Authorization: Basic …` explicitly. Verified with
+issue 03's fix applied too — full happy path (`POST /applications` → worker
+consumes → CouchDB updated) run end to end: `app-1001` went `received` →
+`screened`, `outcome: clear`. `check.sh` clean.
 
 ## Comments

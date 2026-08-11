@@ -1,4 +1,4 @@
-Status: open
+Status: closed
 
 # ApplicationPublisher.PublishAsync throws — NATS client has no JSON serializer registered
 
@@ -28,24 +28,17 @@ failure the demo's abandonment path (`app-fail-1004`) is supposed to
 *demonstrate deliberately* — here it happens unintentionally on every
 request, including the happy path.
 
-## What to do
+## Fixed (2026-08-11)
 
-Register a JSON serializer on `NatsOpts` in both `Screening.Api/Program.cs`
-and `Screening.Worker/Program.cs`, e.g.:
+Registered `SerializerRegistry = NatsJsonSerializerRegistry.Default`
+(package `NATS.Client.Serializers.Json`, already referenced) on `NatsOpts` in
+both `Screening.Api/Program.cs` and `Screening.Worker/Program.cs`. Confirmed
+against `NATS.Net` 3.1.0, the version pinned in both `.csproj` files.
 
-```csharp
-new NatsConnection(new NatsOpts
-{
-    Url = ...,
-    SerializerRegistry = NatsJsonSerializerRegistry.Default,
-})
-```
-
-(Confirm exact API against the `NATS.Net` version pinned in
-`Directory.Packages.props` — the registry/serializer surface has moved
-between major versions.) Then re-run the full happy path end to end: `POST
-/applications` → worker consumes → CouchDB updated to `screened` — to confirm
-the NATS hop and worker-side spans actually appear on the trace, which issue
-01's verification never reached.
+Verified live: full happy path run end to end — `POST /applications`
+(`app-1001`) → 202 → worker consumes → CouchDB updated. `GET
+/applications/app-1001` returned `status: screened, outcome: clear`. The
+NATS hop and worker-side spans now exist; issue 01's verification only
+reached the API's own CouchDB spans, this closes the gap. `check.sh` clean.
 
 ## Comments

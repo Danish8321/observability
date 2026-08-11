@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using NATS.Client.Core;
+using NATS.Client.Serializers.Json;
 using Raksawi.Observability;
 using Raksawi.Observability.Kyc;
 using Screening.Api;
@@ -30,6 +31,9 @@ builder.AddRaksawiObservability(o =>
 builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsOpts
 {
     Url = builder.Configuration["Nats:Url"] ?? "nats://localhost:4222",
+    // Default serializer only handles primitives/strings — publishing a
+    // record without this throws NatsException at every call.
+    SerializerRegistry = NatsJsonSerializerRegistry.Default,
 }));
 
 builder.Services.AddHttpClient<ApplicationRepository>(client =>
