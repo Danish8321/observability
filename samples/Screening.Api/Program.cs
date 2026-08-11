@@ -33,7 +33,17 @@ builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsO
 }));
 
 builder.Services.AddHttpClient<ApplicationRepository>(client =>
-    client.BaseAddress = new Uri(couchDbUrl));
+{
+    // HttpClient ignores userinfo embedded in a URI (RFC 3986 §3.2.1 is not
+    // honoured), so credentials in couchDbUrl need an explicit header.
+    var couchDbUri = new Uri(couchDbUrl);
+    client.BaseAddress = new Uri(couchDbUri.GetLeftPart(UriPartial.Authority));
+    if (!string.IsNullOrEmpty(couchDbUri.UserInfo))
+    {
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(couchDbUri.UserInfo)));
+    }
+});
 
 builder.Services.AddSingleton<ApplicationPublisher>();
 builder.Services.AddProblemDetails();

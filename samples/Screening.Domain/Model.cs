@@ -15,10 +15,14 @@ public sealed record ApplicationRequest(
 /// <summary>The CouchDB document.</summary>
 public sealed record ApplicationDocument
 {
+    // WhenWritingNull: CouchDB rejects a PUT whose body carries "_id": null —
+    // the document id must come from the URL alone on first write.
     [JsonPropertyName("_id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Id { get; init; }
 
     [JsonPropertyName("_rev")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Revision { get; init; }
 
     [JsonPropertyName("status")]
