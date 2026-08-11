@@ -23,7 +23,7 @@ silently.
 |---|---|---|
 | `Raksawi.Observability` | any estate service | `net48;net10.0` |
 | `Raksawi.Observability.Kyc` | KYC services | `net48;net10.0` |
-| `Raksawi.Observability.Analyzers` | build only, `PrivateAssets="all"` | Roslyn |
+| `Raksawi.Observability.Analyzers` (not yet built) | build only, `PrivateAssets="all"` | Roslyn |
 | Collector configuration | platform deployment | PR-gated, `otelcol validate` in CI |
 | Diagnostic query specifications | dashboards and runbooks | store-neutral |
 | Governance | humans and audit | this file, `CONTEXT.md`, `docs/adr/` |
@@ -100,16 +100,20 @@ of a constraint that is expensive to retrofit.
 
 ## Verification
 
-Nothing is described as working without evidence from a named script. None of
-these exist yet; they are written when code starts.
+Nothing is described as working without evidence from a named script. All five
+exist; two of them fail on purpose.
 
-| Script | Proves |
-|---|---|
-| `check.sh` | Both targets build, analyzers run, formatting holds |
-| `test-fast.sh` | Unit tests and analyzer fixture tests |
-| `test-full.sh` | The above, plus `otelcol validate` on collector configuration |
-| `contract.sh` | Collector policy and the declared allowlist express the same rules |
-| `e2e.sh` | Assertions against *received* telemetry, not configuration |
+| Script | Proves | Status |
+|---|---|---|
+| `check.sh` | Both targets build, formatting holds | working |
+| `test-fast.sh` | Unit tests, no collector/store/network | working |
+| `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
+| `contract.sh` | Collector policy and the declared allowlist express the same rules | **honest-failing stub** — no code-side allowlist declaration (ADR-0017) and no collector allowlist processor (ADR-0003) exist yet, so there is nothing to diff |
+| `e2e.sh` | Assertions against *received* telemetry, not configuration | **honest-failing stub** — no live collector/store stack with allowlist enforcement to assert against |
+
+`contract.sh` and `e2e.sh` exit 1 with an explanation rather than passing
+vacuously or being omitted. They turn green only when their prerequisites
+land, per the sequencing below.
 
 `e2e.sh` exists because Rev 3 **Gate 3** requires redaction verified by
 inspecting stored data. A test that reads configuration would verify intent, not
@@ -136,8 +140,20 @@ docs/phase3/                  store bake-off criteria, failure matrix
 
 ## Current state
 
-Design only. No code, no build, no scripts, nothing verified. Nineteen ADRs, a
-glossary, and five Phase 0 worksheets whose data has not been collected.
+Code exists and builds: `Raksawi.Observability`, `Raksawi.Observability.Kyc`,
+the `Screening` sample (API, domain, worker), and unit tests, all on
+`net48;net10.0` except the sample (`net10.0` only). Twenty-three ADRs, a
+glossary, and five Phase 0 worksheets whose data has **not** been collected —
+that data, not more code, is the current bottleneck.
+
+Not yet built: `Raksawi.Observability.Analyzers` (build-time enforcement point,
+ADR-0003) and the collector-side allowlist processor (also ADR-0003) — so of
+the three enforcement points the design calls for, only one (library before
+export) is real today. Ten accepted ADRs are deliberately unimplemented until
+after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).
+CouchDB URL redaction
+([ADR-0023](./docs/adr/0023-couchdb-changes-the-database-surface.md)) fails
+open by design and has not yet been verified against a real span.
 
 What is unresolved is tracked in
 [`docs/open-questions.md`](./docs/open-questions.md) rather than in anyone's
