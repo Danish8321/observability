@@ -160,10 +160,10 @@ against real spans on 2026-08-11
 What is unresolved is tracked in
 [`docs/open-questions.md`](./docs/open-questions.md) rather than in anyone's
 head. Blocking today: the two names in
-[ADR-0019](./docs/adr/0019-delegated-data-protection-ownership.md), the
-[regulatory request](./docs/regulatory-request.md) which is drafted but unsent,
-and whether SSO is mandatory — which must be answered before the store decision
-at I3.11, not after.
+[ADR-0019](./docs/adr/0019-delegated-data-protection-ownership.md) and the
+[regulatory request](./docs/regulatory-request.md), which is drafted but
+unsent. SSO is answered — not mandatory (Q3, 2026-08-10) — and does not
+disqualify either candidate store at I3.11.
 
 Next action is [Phase 0](./docs/phase0/), starting with the performance
 baseline, because it is the only measurement in the programme that expires.
