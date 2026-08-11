@@ -153,7 +153,9 @@ export) is real today. Ten accepted ADRs are deliberately unimplemented until
 after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).
 CouchDB URL redaction
 ([ADR-0023](./docs/adr/0023-couchdb-changes-the-database-surface.md)) fails
-open by design and has not yet been verified against a real span.
+open by design; both the redaction and the fail-open path were verified
+against real spans on 2026-08-11
+(`.scratch/demo-readiness/issues/01-verify-couchdb-redaction-real-span.md`).
 
 What is unresolved is tracked in
 [`docs/open-questions.md`](./docs/open-questions.md) rather than in anyone's

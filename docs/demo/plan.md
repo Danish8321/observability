@@ -75,8 +75,9 @@ derived from applicant data, or are they opaque?*
 
 **Answered 2026-08-11 (QD2): opaque.** There is almost nothing to do —
 `CouchDbUrlPolicy` redaction stays in as defense-in-depth, not as a
-compliance-blocking fix. It still fails open on a host mismatch, and that
-should be verified against a real span before being relied on (see
+compliance-blocking fix. It still fails open on a host mismatch; both the
+redaction and the fail-open path were verified against real spans the same
+day (see
 `.scratch/demo-readiness/issues/01-verify-couchdb-redaction-real-span.md`).
 
 **One more CouchDB-specific trap.** The `_changes` feed is a long-poll: a single
