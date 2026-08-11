@@ -52,9 +52,11 @@ public sealed class RaksawiObservabilityOptions
 
     /// <summary>
     /// Redact document identifiers and view keys out of CouchDB URLs.
-    /// Answered by demo phase D0 (QD2): if CouchDB document IDs are derived
-    /// from applicant data this must be true, and telemetry must not be
-    /// enabled against real data until it is.
+    /// QD2 (demo phase D0) answered 2026-08-11: document IDs are opaque, not
+    /// derived from applicant data, so this is defense-in-depth rather than a
+    /// compliance-blocking requirement. Still defaults to true, and the
+    /// redaction still fails open on a host mismatch — verify against a real
+    /// span before relying on it.
     /// </summary>
     public bool RedactCouchDbUrls { get; set; } = true;
 

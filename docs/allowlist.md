@@ -75,7 +75,7 @@ primary object rather than reviewing keys one at a time.
 | `db.query.text` | 3 | **Nothing emits this** — the database is CouchDB, per [ADR-0023](./adr/0023-couchdb-changes-the-database-surface.md). Carved out anyway, costlessly, so a future SQL component cannot arrive unnoticed |
 | `db.statement` | 3 | Pre-rename form of the above. Same reasoning |
 | `db.query.parameter.*` | 3 | Same reasoning |
-| `url.full`, `url.query` **on CouchDB spans** | 3 | 🔒 **The real database carve-out.** CouchDB is HTTP: `GET /{db}/{docid}` puts the document ID in the path and `_view?key=` puts the lookup key in the query string. If document IDs are derived from applicant data, every read leaks — a broader surface than SQL statement text was |
+| `url.full`, `url.query` **on CouchDB spans** | 3 | 🔒 **The real database carve-out.** CouchDB is HTTP: `GET /{db}/{docid}` puts the document ID in the path and `_view?key=` puts the lookup key in the query string. QD2 answered 2026-08-11 — document IDs are opaque, not derived from applicant data — so this carve-out is now defense-in-depth rather than the compliance-blocking case it was drafted against |
 
 `exception.message` remains allowed on application and HTTP spans, where it
 carries diagnostic value and rarely quotes record contents. It is covered by

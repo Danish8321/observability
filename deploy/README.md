@@ -56,7 +56,8 @@ apply and document identifiers reach the store intact.
 
 ## Before this touches anything real
 
-- [ ] QD2 answered — are CouchDB document IDs derived from applicant data
+- [x] QD2 answered — document IDs are opaque, not derived from applicant data
+      (2026-08-11)
 - [ ] Allowlist processor generated and attached at the collector
 - [ ] Access tiers enforced ([ADR-0020](../docs/adr/0020-telemetry-access-tiers.md))
 - [ ] Sampling policy set from measured volume

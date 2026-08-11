@@ -70,12 +70,14 @@ URL:
 
 **So the identity-in-names audit is now the first technical task, not a Phase 0
 worksheet item, and it has a third input: CouchDB document ID and view key
-shape.** One question decides the demo's redaction work: *are document IDs
+shape.** One question decided the demo's redaction work: *are document IDs
 derived from applicant data, or are they opaque?*
 
-If opaque, there is almost nothing to do. If derived, `url.full` needs redaction
-on CouchDB spans from the first line of demo code — cheap now, expensive after
-data lands in a store.
+**Answered 2026-08-11 (QD2): opaque.** There is almost nothing to do —
+`CouchDbUrlPolicy` redaction stays in as defense-in-depth, not as a
+compliance-blocking fix. It still fails open on a host mismatch, and that
+should be verified against a real span before being relied on (see
+`.scratch/demo-readiness/issues/01-verify-couchdb-redaction-real-span.md`).
 
 **One more CouchDB-specific trap.** The `_changes` feed is a long-poll: a single
 HTTP request held open for minutes. Instrumented naively it produces enormous

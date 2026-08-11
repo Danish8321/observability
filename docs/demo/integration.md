@@ -102,10 +102,17 @@ a tour into a diagnosis:
 |---|---|---|
 | Downstream failure | Throw in one service's handler for a specific dummy record | The failing hop highlighted inside a trace that crosses services |
 | Slow dependency | `Task.Delay` in a CouchDB call path | Where latency actually went, rather than where it was noticed |
-| Silent async drop | Consumer throws and does not ack | The API returned 200 and the work never completed — the case today's logs are worst at |
+| Silent async drop | Consumer retries and abandons | The API returned 202 and the work never completed — the case today's logs are worst at |
 
 The third is the strongest. It is the failure where the edge looks healthy and
 nothing downstream finished, and it is genuinely hard to diagnose without this.
+
+**Answered 2026-08-11 (QD1b): the silent async drop, already coded.** Submit an
+`ApplicationId` containing `"fail"`. `ScreeningService` throws
+`ScreeningProviderException`; `ScreeningConsumer` retries 3×, each attempt a
+`screening.retry` span event, then abandons — tagged `screening.abandoned`,
+counted by reason on the `Abandoned` metric. No redeploy, no new code. `slow`
+is available as a second beat if there's time.
 
 **Say the "before" number out loud.** Roughly how long the same fault would take
 to find today, across N log files with no shared identifier. Comparison is the
@@ -117,7 +124,6 @@ It will be asked, and the honest answer is a short list rather than a no:
 
 - Allowlist enforcement at the collector — the only thing stopping a CPR from
   reaching the store
-- QD2 answered: are CouchDB document IDs derived from applicant data
 - Access tiers ([ADR-0020](../adr/0020-telemetry-access-tiers.md))
 - Sampling policy set from measured volume, not 1.0
 - Queue sized from a measured restore window
