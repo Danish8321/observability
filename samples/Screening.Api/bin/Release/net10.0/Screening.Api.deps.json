@@ -1,0 +1,440 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Screening.Api/1.0.0": {
+        "dependencies": {
+          "NATS.Net": "3.1.0",
+          "Raksawi.Observability": "1.0.0",
+          "Screening.Domain": "1.0.0"
+        },
+        "runtime": {
+          "Screening.Api.dll": {}
+        }
+      },
+      "NATS.Client.Abstractions/3.1.0": {
+        "runtime": {
+          "lib/net10.0/NATS.Client.Abstractions.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.Core/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Abstractions": "3.1.0",
+          "NATS.NKeys": "1.0.1"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.Core.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.Hosting/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Core": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.Hosting.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.JetStream/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Core": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.JetStream.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.KeyValueStore/3.1.0": {
+        "dependencies": {
+          "NATS.Client.JetStream": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.KeyValueStore.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.ObjectStore/3.1.0": {
+        "dependencies": {
+          "NATS.Client.JetStream": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.ObjectStore.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.Serializers.Json/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Abstractions": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.Serializers.Json.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.Services/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Core": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.Services.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Client.Simplified/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Core": "3.1.0",
+          "NATS.Client.Serializers.Json": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Client.Simplified.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Extensions.Microsoft.DependencyInjection/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Simplified": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Extensions.Microsoft.DependencyInjection.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.Net/3.1.0": {
+        "dependencies": {
+          "NATS.Client.Core": "3.1.0",
+          "NATS.Client.Hosting": "3.1.0",
+          "NATS.Client.JetStream": "3.1.0",
+          "NATS.Client.KeyValueStore": "3.1.0",
+          "NATS.Client.ObjectStore": "3.1.0",
+          "NATS.Client.Serializers.Json": "3.1.0",
+          "NATS.Client.Services": "3.1.0",
+          "NATS.Client.Simplified": "3.1.0",
+          "NATS.Extensions.Microsoft.DependencyInjection": "3.1.0"
+        },
+        "runtime": {
+          "lib/net10.0/NATS.Net.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.1.0.0"
+          }
+        }
+      },
+      "NATS.NKeys/1.0.1": {
+        "runtime": {
+          "lib/net10.0/NATS.NKeys.dll": {
+            "assemblyVersion": "1.0.1.0",
+            "fileVersion": "1.0.1.0"
+          }
+        }
+      },
+      "OpenTelemetry/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.17.0.2115"
+          }
+        }
+      },
+      "OpenTelemetry.Api/1.17.0": {
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Api.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.17.0.2115"
+          }
+        }
+      },
+      "OpenTelemetry.Api.ProviderBuilderExtensions/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry.Api": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Api.ProviderBuilderExtensions.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.17.0.2115"
+          }
+        }
+      },
+      "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Exporter.OpenTelemetryProtocol.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.17.0.2115"
+          }
+        }
+      },
+      "OpenTelemetry.Extensions.Hosting/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Extensions.Hosting.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.17.0.2115"
+          }
+        }
+      },
+      "OpenTelemetry.Instrumentation.AspNetCore/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Instrumentation.AspNetCore.dll": {
+            "assemblyVersion": "1.17.0.1204",
+            "fileVersion": "1.17.0.1204"
+          }
+        }
+      },
+      "OpenTelemetry.Instrumentation.Http/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry.Api.ProviderBuilderExtensions": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Instrumentation.Http.dll": {
+            "assemblyVersion": "1.17.0.1210",
+            "fileVersion": "1.17.0.1210"
+          }
+        }
+      },
+      "OpenTelemetry.Instrumentation.Runtime/1.17.0": {
+        "dependencies": {
+          "OpenTelemetry.Api": "1.17.0"
+        },
+        "runtime": {
+          "lib/net10.0/OpenTelemetry.Instrumentation.Runtime.dll": {
+            "assemblyVersion": "1.17.0.1215",
+            "fileVersion": "1.17.0.1215"
+          }
+        }
+      },
+      "Raksawi.Observability/1.0.0": {
+        "dependencies": {
+          "OpenTelemetry": "1.17.0",
+          "OpenTelemetry.Exporter.OpenTelemetryProtocol": "1.17.0",
+          "OpenTelemetry.Extensions.Hosting": "1.17.0",
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.17.0",
+          "OpenTelemetry.Instrumentation.Http": "1.17.0",
+          "OpenTelemetry.Instrumentation.Runtime": "1.17.0"
+        },
+        "runtime": {
+          "Raksawi.Observability.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Raksawi.Observability.Kyc/1.0.0": {
+        "runtime": {
+          "Raksawi.Observability.Kyc.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Screening.Domain/1.0.0": {
+        "dependencies": {
+          "NATS.Net": "3.1.0",
+          "Raksawi.Observability.Kyc": "1.0.0"
+        },
+        "runtime": {
+          "Screening.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Screening.Api/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "NATS.Client.Abstractions/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-0sJrGQrW1ZTSvn5VU1mW35NejP6/OQx2PJUCJ1UrIOmDql9Il0SPohs6ZFB2T6s+Ndy5+fPa0+NF2Kk/lV1+/w==",
+      "path": "nats.client.abstractions/3.1.0",
+      "hashPath": "nats.client.abstractions.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.Core/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-wL88Ti/T9ExdFejYYWYylSOom292xSug+9bmJ+EF0fgPUaOWwE6p6xOoAmI95BURQdktAooqncDdblcSrKPAUg==",
+      "path": "nats.client.core/3.1.0",
+      "hashPath": "nats.client.core.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.Hosting/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-eDOYH0yrypzxFxojgxzvqyTt5ZEW+shyx/A61bhhsdKPSISEkHae1kSqvQAZE8J875UHxAsbTgoU4x9KCz4XuQ==",
+      "path": "nats.client.hosting/3.1.0",
+      "hashPath": "nats.client.hosting.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.JetStream/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-n+HUDkv+cdzehOlLUkq1ZaPm3vlm1aQDMcPU1Qa26TjdwxJnyOUa7+0K3gvYlW5msqvGNwpqNbgq5ILo9wZjrQ==",
+      "path": "nats.client.jetstream/3.1.0",
+      "hashPath": "nats.client.jetstream.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.KeyValueStore/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-G/24LA7/tQO2AwamvRaSdk5u1nnCNsBrvX+WyH8tc1zZiQ8szKkrFRcszxIl6H1pmygO6MLNWo0rpHUrbppWSw==",
+      "path": "nats.client.keyvaluestore/3.1.0",
+      "hashPath": "nats.client.keyvaluestore.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.ObjectStore/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Xmjr4pIAUfNOLxL9Yx3CNEs6Tqe0jt8oWUtl+vQpWMUg8zexlY7f7N0H4RYMouxWN+iStArxkMvYDzU6E3eSvg==",
+      "path": "nats.client.objectstore/3.1.0",
+      "hashPath": "nats.client.objectstore.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.Serializers.Json/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lmiZL0XWribrm5wN+xtCpTYf0kH89ChBPD7N9RvWxEm5/5ntJt4k8ofnkgo84F9v/RUJCA7bmkpnTxO8niWXfg==",
+      "path": "nats.client.serializers.json/3.1.0",
+      "hashPath": "nats.client.serializers.json.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.Services/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-VmECcKJqS4aErZZWnRIQa8L3Ze/NsdmBmKdP9NWW9t9WAbU60+btpLkOGhAu7wPEo94193OIw4AdIzoe55uiqA==",
+      "path": "nats.client.services/3.1.0",
+      "hashPath": "nats.client.services.3.1.0.nupkg.sha512"
+    },
+    "NATS.Client.Simplified/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-SPYXkALvXJ6wKQ96aQ0zocJ4pi7ZAIGyliE9dcvVNio2YW/ydH4Gr0QrkLZxVTGpFOGy9kadfFMhn86hhRBFrw==",
+      "path": "nats.client.simplified/3.1.0",
+      "hashPath": "nats.client.simplified.3.1.0.nupkg.sha512"
+    },
+    "NATS.Extensions.Microsoft.DependencyInjection/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-D45Wn4Y2Doyf5w37sGtbrTxiyTH/l43DXdpk3+sU9iSKYUNV96FZHzc1KPZ7e/vkcIn70bdIT/oayb1u0b4tng==",
+      "path": "nats.extensions.microsoft.dependencyinjection/3.1.0",
+      "hashPath": "nats.extensions.microsoft.dependencyinjection.3.1.0.nupkg.sha512"
+    },
+    "NATS.Net/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-1K1/1JDnpidgGsnPcqmOdcv5D693SvOyTWMYK3IuSW3wL9awNLJ2Ur68ZNgwKkbX6BWeRMUEH0RdWHV62R1NDw==",
+      "path": "nats.net/3.1.0",
+      "hashPath": "nats.net.3.1.0.nupkg.sha512"
+    },
+    "NATS.NKeys/1.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-xtURX0fexmMd10noG3Uc8gFgwaH7QLQxxgdaVoQKFo0+8a4blwe8vPGgY2S5pzeVYcRXyjlIoA4AR4JgtThyjQ==",
+      "path": "nats.nkeys/1.0.1",
+      "hashPath": "nats.nkeys.1.0.1.nupkg.sha512"
+    },
+    "OpenTelemetry/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rMLOTftlMlTm7+MSrvXDHnJRjVkROFNKXHZrYjOsX+LankaFG7QSflx7qRRGjoqZoirohnxmJQ7GEb9occO4Gg==",
+      "path": "opentelemetry/1.17.0",
+      "hashPath": "opentelemetry.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Api/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-mSBxzomZgHIJu9CyVNqyDu/n2JHEtqVgfcCD1Br0cV5iLYogjZOMqhlVLt99PEp+0KGBNUR3GXgeOdN2GR3F9g==",
+      "path": "opentelemetry.api/1.17.0",
+      "hashPath": "opentelemetry.api.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Api.ProviderBuilderExtensions/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Xgc3Qf9B9TFMFpx6exTdGqMWuYIT2miNzkdMPutVvT9YuMFaEovXWke1Gb6z8NxYaQbbGF38vYLuSg1JCeui5Q==",
+      "path": "opentelemetry.api.providerbuilderextensions/1.17.0",
+      "hashPath": "opentelemetry.api.providerbuilderextensions.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Exporter.OpenTelemetryProtocol/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-R1omQOrQpGlS0Cp5UIr/TAiuEA48JrPlgr1NPV5gESiTU7HhWU+ILe2EBSYb1fKdsSavZ7nZkHcUxAzofPqr2A==",
+      "path": "opentelemetry.exporter.opentelemetryprotocol/1.17.0",
+      "hashPath": "opentelemetry.exporter.opentelemetryprotocol.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Extensions.Hosting/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-t1OwL/4qgboGMobYVT+UV5zgWnFqCp4Pw8lcsmzh8m2K8PQsTKkyxrC32tqYTMYny3GOW4q5cltE3dTVzLmRew==",
+      "path": "opentelemetry.extensions.hosting/1.17.0",
+      "hashPath": "opentelemetry.extensions.hosting.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Instrumentation.AspNetCore/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-rGbmk1vuy1kvgZmE0ps7Vb99YZvDap6AalrrF60FwnNit1uW/PbeFZj1cpb0T8MPkYmjhBrRJ1/JB6QqXkRjHA==",
+      "path": "opentelemetry.instrumentation.aspnetcore/1.17.0",
+      "hashPath": "opentelemetry.instrumentation.aspnetcore.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Instrumentation.Http/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-uTwVtxIJ/xB96wGYTaDsbkJVeCFdUxTwvrlDUn2YJixy0UuKc8DvQMzwKNJMTzNFiiyYO9c40id6tUHTmWs33A==",
+      "path": "opentelemetry.instrumentation.http/1.17.0",
+      "hashPath": "opentelemetry.instrumentation.http.1.17.0.nupkg.sha512"
+    },
+    "OpenTelemetry.Instrumentation.Runtime/1.17.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-HyYenisDn/xdtyVXdjImsCl+RNC2gq01N0rvSR7tsYAylXR2sxX/YgMsyTajMXA27+r1vB7lNU8cWRhV0fwL+Q==",
+      "path": "opentelemetry.instrumentation.runtime/1.17.0",
+      "hashPath": "opentelemetry.instrumentation.runtime.1.17.0.nupkg.sha512"
+    },
+    "Raksawi.Observability/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Raksawi.Observability.Kyc/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Screening.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

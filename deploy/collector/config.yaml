@@ -1,0 +1,69 @@
+# OpenTelemetry Collector — demo configuration.
+#
+# Demo scope only (ADR-0022). The allowlist processor that ADR-0003 requires is
+# NOT here: it is generated from assembly attributes (ADR-0017) and that work is
+# deferred past the demo. This configuration is therefore safe for staging and
+# NOT safe for production KYC traffic.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        # 4318 only. gRPC on 4317 is unsupported on .NET Framework and closed
+        # estate-wide, so exposing it here would let a service adopt a transport
+        # that cannot work everywhere.
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  # Rev 3 I3.6: telemetry must never participate in business request success.
+  # The collector holds data rather than pushing back on producers.
+
+  resource:
+    attributes:
+      - key: deployment.environment.name
+        value: staging
+        action: upsert
+
+exporters:
+  otlp/signoz:
+    endpoint: signoz-otel-collector:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      storage: file_storage
+      # Sized from a measured restore window at I3.6/I3.7. This is a demo
+      # placeholder and is explicitly not the durability bound (Q13).
+      queue_size: 10000
+    retry_on_failure:
+      enabled: true
+
+extensions:
+  file_storage:
+    directory: /var/lib/otelcol/storage
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/signoz]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/signoz]
+  telemetry:
+    metrics:
+      # The stack's own health. Rev 3 I3.8 — a monitoring stack that reports
+      # healthy while dead is the failure this exists to prevent.
+      level: detailed

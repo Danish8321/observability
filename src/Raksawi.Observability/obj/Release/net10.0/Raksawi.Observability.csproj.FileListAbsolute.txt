@@ -1,0 +1,14 @@
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.csproj.AssemblyReference.cache
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.AssemblyInfoInputs.cache
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.AssemblyInfo.cs
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.csproj.CoreCompileInputs.cache
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.xml
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\bin\Release\net10.0\Raksawi.Observability.deps.json
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\bin\Release\net10.0\Raksawi.Observability.dll
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\bin\Release\net10.0\Raksawi.Observability.pdb
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\bin\Release\net10.0\Raksawi.Observability.xml
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.dll
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\refint\Raksawi.Observability.dll
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\Raksawi.Observability.pdb
+C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\obj\Release\net10.0\ref\Raksawi.Observability.dll

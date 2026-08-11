@@ -1,0 +1,8 @@
+is_global = true
+build_property.RootNamespace = Raksawi.Observability
+build_property.ProjectDir = C:\Users\MOGAMBO\Documents\MyDocs\Repository\observability\src\Raksawi.Observability\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.CsWinRTUseWindowsUIXamlProjections = false
+build_property.EffectiveAnalysisLevelStyle = 
+build_property.EnableCodeStyleSeverity = 

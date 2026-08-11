@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Screening.Api/Screening.Api.csproj" />
+    <Project Path="samples/Screening.Domain/Screening.Domain.csproj" />
+    <Project Path="samples/Screening.Worker/Screening.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Raksawi.Observability.Kyc/Raksawi.Observability.Kyc.csproj" />
+    <Project Path="src/Raksawi.Observability/Raksawi.Observability.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Raksawi.Observability.Tests/Raksawi.Observability.Tests.csproj" />
+  </Folder>
+</Solution>

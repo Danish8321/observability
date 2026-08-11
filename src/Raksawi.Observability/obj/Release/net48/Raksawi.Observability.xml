@@ -1,0 +1,160 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Raksawi.Observability</name>
+    </assembly>
+    <members>
+        <member name="T:Raksawi.Observability.CouchDbUrlPolicy">
+            <summary>
+            CouchDB is HTTP, so it arrives as ordinary client spans with no db.*
+            attributes. That makes it cheap to instrument and moves the entire database
+            risk into the URL — see ADR-0023.
+            </summary>
+        </member>
+        <member name="M:Raksawi.Observability.CouchDbUrlPolicy.IsChangesFeed(System.Uri)">
+            <summary>
+            The continuous changes feed is a long-poll held open for minutes. Traced
+            as an ordinary client span it produces spans of arbitrary duration that
+            corrupt every latency percentile computed from span data.
+            </summary>
+        </member>
+        <member name="M:Raksawi.Observability.CouchDbUrlPolicy.Redact(System.Uri)">
+            <summary>
+            Replaces document identifiers and view keys with placeholders, keeping
+            the shape of the request — which is the diagnostically useful part —
+            and discarding the values, which are where identity can appear.
+            </summary>
+            <remarks>
+            <c>GET /kyc/abc-123</c> becomes <c>GET /kyc/{docid}</c>.
+            <c>GET /kyc/_design/d/_view/v?key="x"</c> becomes
+            <c>GET /kyc/_design/d/_view/v?key={value}</c>.
+            </remarks>
+        </member>
+        <member name="T:Raksawi.Observability.RaksawiObservability">
+            <summary>
+            .NET Framework 4.8 entry point. Called from Application_Start; the returned
+            handle is disposed in Application_End.
+            </summary>
+            <remarks>
+            <para>
+            Built from the first commit per ADR-0012 and <b>unvalidated</b> until Phase 2
+            per ADR-0005 — the three documented 4.8 failure modes are reproduced against
+            a fixture before this path is trusted. ADR-0022 defers that past the demo.
+            </para>
+            <para>
+            This does not wire TelemetryHttpModule, which must be registered in
+            Web.config, and IIS must run in integrated pipeline mode.
+            </para>
+            </remarks>
+        </member>
+        <member name="M:Raksawi.Observability.RaksawiObservability.Start(System.Action{Raksawi.Observability.RaksawiObservabilityOptions})">
+            <summary>
+            Starts telemetry. Never throws for telemetry reasons: a service must be
+            able to start without a collector (Rev 3 I3.6).
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservability.Handle.W3CWarning">
+            <summary>
+            Non-null when the trace context format had to be corrected. Surfaced
+            rather than logged, because there is no logging abstraction to
+            assume on this runtime.
+            </summary>
+        </member>
+        <member name="T:Raksawi.Observability.RaksawiObservabilityOptions">
+            <summary>
+            Configuration for the observability stack. Deliberately small: the values
+            here are the ones that differ per service or per environment, and nothing
+            else is configurable.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.ServiceName">
+            <summary>
+            Bare service name, kebab-case, per ADR-0006. Never derived from a
+            deployment-owned name such as a hostname, container name, or app pool.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.ServiceNamespace">
+            <summary>
+            The domain this service belongs to, per ADR-0006.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.ServiceInstanceId">
+            <summary>
+            Stable identity for this instance, per ADR-0008. Supplied via
+            OTEL_SERVICE_INSTANCE_ID when known; derived from the host when not.
+            An app pool recycle does not change it.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.OtlpEndpoint">
+            <summary>
+            OTLP endpoint. http/protobuf on 4318 — gRPC on 4317 is unsupported on
+            .NET Framework and closed estate-wide.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.SamplingRatio">
+            <summary>
+            Head sampling ratio. Absent configuration is a production boot failure
+            per ADR-0010; this default applies only when <see cref="P:Raksawi.Observability.RaksawiObservabilityOptions.IsDevelopment"/>.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.IsDevelopment">
+            <summary>
+            When true, an absent <see cref="P:Raksawi.Observability.RaksawiObservabilityOptions.SamplingRatio"/> defaults to 1.0 instead
+            of failing the boot.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.CouchDbHosts">
+            <summary>
+            Hosts whose outbound HTTP calls are CouchDB. Used to apply the
+            ADR-0023 URL treatment, since CouchDB is indistinguishable from any
+            other HTTP dependency at the instrumentation layer.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.RedactCouchDbUrls">
+            <summary>
+            Redact document identifiers and view keys out of CouchDB URLs.
+            Answered by demo phase D0 (QD2): if CouchDB document IDs are derived
+            from applicant data this must be true, and telemetry must not be
+            enabled against real data until it is.
+            </summary>
+        </member>
+        <member name="P:Raksawi.Observability.RaksawiObservabilityOptions.ActivitySources">
+            <summary>
+            ActivitySource names belonging to the application itself. NATS.Net's own
+            source is registered automatically and does not belong here.
+            </summary>
+        </member>
+        <member name="F:Raksawi.Observability.RaksawiObservabilityOptions.NatsActivitySourceName">
+            <summary>
+            NATS.Net emits publish and subscribe spans and propagates trace context
+            through message headers on its own, from version 3.0.1. Nothing injects
+            traceparent by hand, and no custom message counters are needed.
+            </summary>
+        </member>
+        <member name="T:Raksawi.Observability.ServiceIdentity">
+            <summary>
+            Resource identity and the trace-context format check. Both runtimes compile
+            this file, which is the point of the multi-target: governance lives in the
+            shared compilation rather than in per-runtime wiring instructions (ADR-0001).
+            </summary>
+        </member>
+        <member name="M:Raksawi.Observability.ServiceIdentity.EnsureW3CTraceContext">
+            <summary>
+            Forces the W3C trace context format. Default on .NET 5+, but
+            <see cref="F:System.Diagnostics.ActivityIdFormat.Hierarchical"/> on .NET Framework, where the
+            failure is silent: traces split in two rather than erroring.
+            </summary>
+            <returns>
+            Null when the format was already correct, otherwise a warning describing
+            what was corrected. Per ADR-0005 this warns and never throws — telemetry
+            setup must not be able to fail a service start (Rev 3 I3.6).
+            </returns>
+        </member>
+        <member name="M:Raksawi.Observability.ServiceIdentity.ResolveInstanceId(Raksawi.Observability.RaksawiObservabilityOptions)">
+            <summary>
+            ADR-0008: supplied if known, derived if not. The derived form must be
+            stable across an app pool recycle, so nothing process-scoped is used.
+            </summary>
+        </member>
+    </members>
+</doc>

@@ -1,0 +1,41 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\MOGAMBO\\Documents\\MyDocs\\Repository\\observability\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A12AF817-3999-01CB-5CB7-7D8D03E65108}|samples\\Screening.Api\\Screening.Api.csproj|c:\\users\\mogambo\\documents\\mydocs\\repository\\observability\\samples\\screening.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A12AF817-3999-01CB-5CB7-7D8D03E65108}|samples\\Screening.Api\\Screening.Api.csproj|solutionrelative:samples\\screening.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\MOGAMBO\\Documents\\MyDocs\\Repository\\observability\\samples\\Screening.Api\\Program.cs",
+              "RelativeDocumentMoniker": "samples\\Screening.Api\\Program.cs",
+              "ToolTip": "C:\\Users\\MOGAMBO\\Documents\\MyDocs\\Repository\\observability\\samples\\Screening.Api\\Program.cs",
+              "RelativeToolTip": "samples\\Screening.Api\\Program.cs",
+              "ViewState": "AgIAACoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-10T16:53:40.784Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

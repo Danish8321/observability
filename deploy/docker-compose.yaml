@@ -1,0 +1,49 @@
+# Demo infrastructure: NATS, CouchDB, and the collector.
+#
+# SigNoz is NOT here — it ships its own compose file and duplicating it would
+# drift. Start SigNoz separately, then this alongside it.
+#
+# 🔒 Dummy data only. No allowlist enforcement exists yet (ADR-0022).
+
+services:
+  nats:
+    image: nats:2.12-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"   # monitoring endpoint — also an estate discovery source
+
+  couchdb:
+    image: couchdb:3.5
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: password
+    ports:
+      - "5984:5984"
+    volumes:
+      - couchdb-data:/opt/couchdb/data
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.140.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
+      - collector-queue:/var/lib/otelcol/storage
+    ports:
+      - "4318:4318"   # OTLP http/protobuf. 4317 is deliberately not exposed
+    depends_on:
+      - nats
+
+volumes:
+  couchdb-data:
+  collector-queue:
+
+# The collector exports to SigNoz on the network below. Create it before
+# starting either stack, and attach SigNoz to it as well:
+#
+#   docker network create observability
+#
+networks:
+  default:
+    name: observability
+    external: true

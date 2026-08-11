@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-targeted like the mechanism package (ADR-0012). The KYC estate
+         includes .NET Framework services and the policy layer must reach them. -->
+    <TargetFrameworks>net48;net10.0</TargetFrameworks>
+    <RootNamespace>Raksawi.Observability.Kyc</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <!-- Activity is in the BCL on .NET 10 and a package on .NET Framework. -->
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>
