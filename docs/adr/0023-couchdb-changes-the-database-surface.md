@@ -55,6 +55,11 @@ span data.
 
 ## Consequences
 
+- **Answered 2026-08-11: document IDs are opaque, not derived from applicant
+  data.** The exposure below did not materialize. `CouchDbUrlPolicy` redaction
+  is retained as defense-in-depth rather than as a compliance-blocking fix —
+  it still fails open, and that behavior should still be verified against a
+  real span before being relied on (see `.scratch/demo-readiness/issues/01-*`).
 - The SQL client instrumentation problem, and with it ADR-0004's
   `RecordException` decision for database spans, **no longer applies**. ADR-0004
   keeps its rules for exception messages generally; its database-specific

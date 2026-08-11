@@ -17,8 +17,8 @@ are in their own section at the top.
 |---|---|---|---|
 | ~~QD1~~ | **Answered 2026-08-10: no historical incident.** Integrate into the real application, run end to end on dummy data, demo that. Guide at [`demo/integration.md`](./demo/integration.md) | — | closed |
 | QD1b | Which fault gets injected live? A healthy system on dummy data is the demo that already failed to convince. Recommended: consumer throws without acking — edge returns 200, work never completes | The difference between a tour and a diagnosis. ~1 hour of work | — |
-| QD2 | 🔒 Are CouchDB document IDs derived from applicant data, or opaque? | Decides whether `url.full` redaction is needed from the first line of demo code. [ADR-0023](./adr/0023-couchdb-changes-the-database-surface.md). A "derived" answer is an existing exposure in CouchDB's own logs, independent of this project | — |
-| QD3 | Does a staging environment exist that can reproduce the scenario? | The ADR-0022 boundary — no production KYC traffic — assumes one does | — |
+| ~~QD2~~ | **Answered 2026-08-11: opaque.** CouchDB document IDs are not derived from applicant data. The exposure ADR-0023 flagged (identity leaking via `url.full`) does not apply. `CouchDbUrlPolicy` redaction stays in as defense-in-depth, not as a compliance-blocking fix | — | closed |
+| ~~QD3~~ | **Answered 2026-08-11: no staging — Dev first.** The demo runs against Dev, not a staging environment reproducing production. Satisfies the ADR-0022 boundary (no production KYC traffic) trivially, since Dev isn't production | — | closed |
 
 ## Blocking production, deferred until after the demo
 
