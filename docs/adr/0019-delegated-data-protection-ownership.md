@@ -4,7 +4,7 @@ Date: 2026-08-10
 
 ## Status
 
-Accepted — pending the two names.
+Accepted — both roles named 2026-08-11, held by one person (see Consequences).
 
 ## Context
 
@@ -50,6 +50,9 @@ technical judgement:
 Where the two disagree, the countersignature is withheld and the change does not
 proceed. Neither role can approve alone.
 
+**Named 2026-08-11:** both roles are held by the Architect (danish). This is a
+deliberate deviation from the design above — see Consequences.
+
 ## Consequences
 
 - The signature at Gate 3 means something, because the person producing the
@@ -62,6 +65,11 @@ proceed. Neither role can approve alone.
   of the compliance argument. The mitigation is that their approvals are recorded
   as pull requests in this repository and are therefore reviewable after the
   fact, not that a second technical reviewer exists.
-- This ADR is incomplete until both names are recorded. Until then Gate 3 remains
-  blocked, and the block is a staffing dependency with lead time rather than a
-  technical one.
+- 🔒 **Both roles are currently held by one person.** The independence this ADR
+  is built on — a technical judgement checked by an accountable countersignature
+  — does not hold today: there is no one to withhold the countersignature. This
+  is accepted for now, confirmed by the Architect 2026-08-11, and is itself the
+  residual risk: no second person currently reviews Gate 3 sign-off, D3.1
+  exceptions, or the regulatory assumptions in ADR-0015. Splitting the roles
+  between two people is unfinished work, not a closed question — track it, don't
+  let the ADR's "both roles named" status read as "the design is intact."

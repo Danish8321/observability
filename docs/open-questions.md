@@ -28,7 +28,7 @@ the answer arrives, and the row stays until it does.
 
 | # | Question | Blocks | Owner |
 |---|---|---|---|
-| Q1 | Who fills the two roles in [ADR-0019](./adr/0019-delegated-data-protection-ownership.md)? Both role-holders exist in the organisation and need briefing, not recruiting. Brief ready at [`data-protection-brief.md`](./data-protection-brief.md) — **not yet sent** | Gate 3 — the split is decided, the names are not | — |
+| ~~Q1~~ | **Answered 2026-08-11: both roles held by the Architect (danish).** This is a deliberate deviation from ADR-0019's separation-of-duties design — recorded there as a residual risk, not a closed question. No second person currently reviews Gate 3 sign-off. Brief at [`data-protection-brief.md`](./data-protection-brief.md) still not sent — send it to whoever eventually takes the DPO half if the roles split | — | closed (with residual risk) |
 | Q2 | What is the written regulatory answer? Request drafted at [`regulatory-request.md`](./regulatory-request.md) — **not yet sent, recipient unconfirmed**. | Confirms or refutes the five assumptions in [ADR-0015](./adr/0015-regulatory-assumptions-pending-written-answer.md) | — |
 | ~~Q3~~ | **Answered 2026-08-10: SSO is not mandatory.** Both candidate stores remain in contention; the SSO disqualifier does not apply | — | closed |
 | ~~Q3b~~ | **Answered 2026-08-10: compliance function plus the ADR-0019 technical owner.** [ADR-0020](./adr/0020-telemetry-access-tiers.md) amended; the disqualifier is now testable. Names still pending via Q1 | — | closed |
@@ -81,3 +81,8 @@ Not questions. Decisions whose downside is known and taken deliberately.
 - **Provenance defends against accident, not a determined developer**, who can
   fork the package or emit raw OTLP.
   [ADR-0017](./adr/0017-allowlist-declared-as-assembly-attributes.md).
+- **Both ADR-0019 roles are held by one person** (the Architect), so there is
+  currently no independent countersignature on Gate 3, D3.1 exceptions, or the
+  ADR-0015 regulatory assumptions. Accepted 2026-08-11 as a staffing-lead-time
+  problem, not a design one.
+  [ADR-0019](./adr/0019-delegated-data-protection-ownership.md).
