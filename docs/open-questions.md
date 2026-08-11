@@ -16,7 +16,7 @@ are in their own section at the top.
 | # | Question | Blocks | Owner |
 |---|---|---|---|
 | ~~QD1~~ | **Answered 2026-08-10: no historical incident.** Integrate into the real application, run end to end on dummy data, demo that. Guide at [`demo/integration.md`](./demo/integration.md) | — | closed |
-| QD1b | Which fault gets injected live? A healthy system on dummy data is the demo that already failed to convince. Recommended: consumer throws without acking — edge returns 200, work never completes | The difference between a tour and a diagnosis. ~1 hour of work | — |
+| ~~QD1b~~ | **Answered 2026-08-11: `ApplicationId` containing `"fail"`.** Already coded in `Screening.Domain/ScreeningService.cs` — throws `ScreeningProviderException`, `Screening.Worker` retries 3×, exhausts, and abandons. API returns 202 immediately; `GET /applications/{id}` shows `Received` forever; the trace carries all 3 retry events plus the abandon tag; the `Abandoned` counter increments by reason. No new code, no redeploy. Confirmed: this is a business-logic exception, not a telemetry failure — the app never crashes because of observability itself (Rev 3 I3.6, enforced independently of this fault) | — | closed |
 | ~~QD2~~ | **Answered 2026-08-11: opaque.** CouchDB document IDs are not derived from applicant data. The exposure ADR-0023 flagged (identity leaking via `url.full`) does not apply. `CouchDbUrlPolicy` redaction stays in as defense-in-depth, not as a compliance-blocking fix | — | closed |
 | ~~QD3~~ | **Answered 2026-08-11: no staging — Dev first.** The demo runs against Dev, not a staging environment reproducing production. Satisfies the ADR-0022 boundary (no production KYC traffic) trivially, since Dev isn't production | — | closed |
 
