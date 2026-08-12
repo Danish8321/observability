@@ -40,7 +40,7 @@ front-run them.
 
 | # | Question | Source | Consumes |
 |---|---|---|---|
-| Q4 | Where does incident time actually go — detect, triage, diagnose, fix? Worksheet ready at [`phase0/incident-decomposition.md`](./phase0/incident-decomposition.md), **not started** | D0.1 | Threshold already fixed at 50% by [ADR-0013](./adr/0013-abort-criterion-becomes-a-reordering.md), so the answer cannot be argued after the fact |
+| ~~Q4~~ | **Answered 2026-08-12: no incident data exists anywhere in the estate with the four timestamps needed.** Same finding as Q5b for the performance baseline — no historical telemetry to retrofit. Per [ADR-0013](./adr/0013-abort-criterion-becomes-a-reordering.md)'s escape clause, applying the reordering: SLO-based alerting (Rev 3 D3.5) promoted from Phase 3 to Phase 1, ahead of estate-wide instrumentation. Detail at [`phase0/incident-decomposition.md`](./phase0/incident-decomposition.md) | D0.1 | closed |
 | Q5 | What are the performance baselines with telemetry off? Plan ready at [`phase0/performance-baseline.md`](./phase0/performance-baseline.md), **not started** | D0.2 | Method fixed by [ADR-0014](./adr/0014-performance-baseline-method.md). **Expires** — unrecoverable once instrumented. Run this first |
 | ~~Q5b~~ | **Answered 2026-08-10: no figures exist.** Passive observation promoted to Run 0, one fixed business week, and it supplies the rate. [ADR-0014](./adr/0014-performance-baseline-method.md) amended; **D0.3 now precedes D0.2** | — | closed |
 | Q5c | Which week is the observation window, and is it representative? | D0.2 | Fixed in advance or the baseline is "whenever we looked." Nobody currently knows the estate's peak day — that is itself a Run 0 output |

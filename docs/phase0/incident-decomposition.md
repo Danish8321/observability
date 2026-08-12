@@ -1,6 +1,6 @@
 # D0.1 — Incident decomposition
 
-**Status:** not started
+**Status:** answered 2026-08-12 — no data exists, see "Reading the result" below
 **Budget:** one hour. Rev 3 calls this the single most valuable hour in the plan.
 **Threshold:** fixed in advance by [ADR-0013](../adr/0013-abort-criterion-becomes-a-reordering.md) — do not revisit it after seeing the data.
 
@@ -96,3 +96,25 @@ That is itself a finding, and a significant one: it means detect and triage time
 are currently unmeasurable, which is a stronger argument for SLO-based alerting
 than any number this worksheet could have produced. Record it as the result and
 apply the ADR-0013 reordering.
+
+## Result (2026-08-12)
+
+**Confirmed: this data does not exist.** No incident record anywhere in the
+estate carries the four timestamps this worksheet needs — no ticket system,
+chat scrollback, or alert history reconstructs `t0`–`t4` for even one past
+incident, let alone the last five. This mirrors Q5b's finding for the
+performance baseline (no per-service throughput figures exist either) — the
+estate currently has no historical telemetry of any kind to retrofit, which
+is the condition this whole project exists to fix.
+
+Per the worksheet's own escape clause: detect and triage time are therefore
+unmeasurable today. Applying ADR-0013's reordering — SLO-based alerting
+(Rev 3 D3.5) is promoted from Phase 3 to Phase 1, becoming the first
+deliverable ahead of estate-wide instrumentation. The collector and
+`service.name` convention are needed either way, so nothing already decided
+is discarded.
+
+Gate 4's re-measurement of MTTR against the D0.5 baseline should record that
+D0.1 had no retrospective baseline to compare against — only whatever D0.5
+(Q9) establishes going forward, once this platform starts producing incidents
+with real timestamps.
