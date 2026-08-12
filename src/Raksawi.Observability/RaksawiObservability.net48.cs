@@ -53,24 +53,30 @@ public static class RaksawiObservability
             .AddSource(options.ActivitySources.ToArray())
             .AddAspNetInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options))
+            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/traces"))
             .Build();
 
         var meter = Sdk.CreateMeterProviderBuilder()
             .SetResourceBuilder(resource)
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
-            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options))
+            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/metrics"))
             .Build();
 
         return new Handle(tracer, meter, w3cWarning);
     }
 
-    private static void ConfigureOtlp(OtlpExporterOptions otlp, RaksawiObservabilityOptions options)
+    private static void ConfigureOtlp(OtlpExporterOptions otlp, RaksawiObservabilityOptions options, string signalPath)
     {
         // gRPC is not supported on .NET Framework. This is not a preference.
+        //
+        // The SDK only auto-appends the per-signal path (v1/traces,
+        // v1/metrics) when Endpoint comes from its own default or from
+        // OTEL_EXPORTER_OTLP_ENDPOINT. Setting Endpoint programmatically, as
+        // this always does, opts out of that — so the path is appended here
+        // explicitly, or every export 404s against the bare endpoint.
         otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
-        otlp.Endpoint = options.OtlpEndpoint;
+        otlp.Endpoint = new Uri(options.OtlpEndpoint, signalPath);
     }
 
     private sealed class Handle : IDisposable
