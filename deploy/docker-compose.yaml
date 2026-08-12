@@ -30,7 +30,10 @@ services:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
       - collector-queue:/var/lib/otelcol/storage
     ports:
-      - "4318:4318"   # OTLP http/protobuf. 4317 is deliberately not exposed
+      # Demo-only: host 4318 is taken by SigNoz's own Foundry-installed
+      # ingester, so this collector's host mapping moved to 4319. Point
+      # Otlp:Endpoint at http://localhost:4319 when running the services.
+      - "4319:4318"   # OTLP http/protobuf. 4317 is deliberately not exposed
     depends_on:
       - nats
 

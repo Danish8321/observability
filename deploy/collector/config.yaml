@@ -35,7 +35,10 @@ processors:
 
 exporters:
   otlp/signoz:
-    endpoint: signoz-otel-collector:4317
+    # Demo-only override: upstream SigNoz's own compose file (which named this
+    # host signoz-otel-collector) is deprecated in favor of the Foundry
+    # installer, whose ingester container is named signoz-ingester-1.
+    endpoint: signoz-ingester-1:4317
     tls:
       insecure: true
     sending_queue:

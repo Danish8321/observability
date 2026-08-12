@@ -153,25 +153,31 @@ a diagnostic read should not become a route to personal data.
 ```sh
 docker network create observability
 
-git clone -b main https://github.com/SigNoz/signoz.git
-cd signoz/deploy/docker && docker compose up -d && cd -
+# SigNoz's own docker-compose install (deploy/docker in the upstream repo) is
+# deprecated — install via the Foundry installer instead, then finish the
+# one-time org signup at http://localhost:8080 before OTLP receivers come up:
+curl -fsSL https://signoz.io/foundry.sh | bash
+foundryctl cast -f casting.yaml
 
+# SigNoz's Foundry ingester already owns host port 4318, so this repo's own
+# collector is remapped to 4319 (deploy/docker-compose.yaml) — point services
+# at it explicitly:
 docker compose -f deploy/docker-compose.yaml up -d
 curl -X PUT http://admin:password@localhost:5984/kyc
 
-dotnet run --project samples/Screening.Api      # terminal 1
-dotnet run --project samples/Screening.Worker   # terminal 2
+Otlp__Endpoint=http://localhost:4319 dotnet run --project samples/Screening.Api      # terminal 1
+Otlp__Endpoint=http://localhost:4319 dotnet run --project samples/Screening.Worker   # terminal 2
 ```
 
 ### Happy path
 
 ```sh
-curl -X POST http://localhost:5000/applications \
+curl -X POST http://localhost:5206/applications \
   -H 'Content-Type: application/json' \
   -H 'X-Session-Id: sess-demo-1' \
   -d '{"applicationId":"app-1001","applicant":"Dummy Person"}'
 
-curl http://localhost:5000/applications/app-1001    # status: screened
+curl http://localhost:5206/applications/app-1001    # status: screened
 ```
 
 One trace, both services, the NATS hop, four CouchDB calls.
@@ -187,12 +193,12 @@ Keyed off the identifier, so they fire from a request with no redeploy.
 | `app-fail-1004` | Fails, retries 3×, abandons | **The strong one** |
 
 ```sh
-curl -X POST http://localhost:5000/applications \
+curl -X POST http://localhost:5206/applications \
   -H 'Content-Type: application/json' \
   -d '{"applicationId":"app-fail-1004","applicant":"Dummy Person"}'
 # 202 Accepted
 
-curl http://localhost:5000/applications/app-fail-1004
+curl http://localhost:5206/applications/app-fail-1004
 # status: received — never screened
 ```
 
@@ -203,7 +209,8 @@ The trace shows two retry events, then an error status, then
 
 In order — each step fails differently.
 
-1. Collector logs show received spans → export works (port **4318**, not 4317)
+1. Collector logs show received spans → export works (port **4319** in this
+   demo's remapped compose, 4318 upstream default — never 4317)
 2. One service in SigNoz → export works end to end
 3. Two services on one trace → HTTP propagation works
 4. NATS hop on the same trace → **most likely step to fail**
