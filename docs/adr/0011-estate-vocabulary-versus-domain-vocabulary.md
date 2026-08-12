@@ -66,3 +66,12 @@ To keep that guarantee explicit rather than incidental: **`tenant.id` is not
 declared in either package until D0.3 confirms the estate is mixed.** If the
 inventory shows a uniformly KYC estate, this ADR is revised before its first
 line of code exists.
+
+**Working position, 2026-08-12 (danish):** today the estate is uniformly KYC —
+the only services running are KYC, and only they use NATS. The stated plan is
+to onboard other services, KYC and non-KYC alike, once the KYC path is
+proven. This is a direction, not the D0.3 inventory itself — D0.3 still has
+not run (no service catalogue, no reconciled five-source sweep). Promotion of
+`tenant.id` stays justified against the *planned* mixed estate rather than
+today's actual one; if that plan changes before D0.3 runs, this position
+needs revisiting before any code depends on it.

@@ -63,3 +63,9 @@ named owner, and a date. It is not treated as passed.
   package at all. If Rev 3 **D0.3**'s inventory shows that no 4.8 service will be
   recompiled, the `net48` target loses its purpose and this decision, along with
   ADR-0001's multi-targeting, should be revisited.
+
+**Working position, 2026-08-12 (danish):** 4.8 is explicitly deferred to last —
+prove the .NET 10 path fully working first, decide 4.8 recompilation after.
+Consistent with this ADR's existing sequencing; not a change to it. D0.3's
+inventory (which of the 4.8 estate, if any, is willing to recompile) still has
+not run — this is a stated intent, not that answer.
