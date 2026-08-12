@@ -73,3 +73,8 @@ deliberate deviation from the design above — see Consequences.
   exceptions, or the regulatory assumptions in ADR-0015. Splitting the roles
   between two people is unfinished work, not a closed question — track it, don't
   let the ADR's "both roles named" status read as "the design is intact."
+- 🔒 **Confirmed 2026-08-11 (danish): this platform is internal-only** — no
+  client-facing exposure, all data self-held within the estate. This lowers the
+  urgency of splitting the two roles but does not close the residual risk above;
+  it is a statement about impact, not about whether independent countersignature
+  exists today.

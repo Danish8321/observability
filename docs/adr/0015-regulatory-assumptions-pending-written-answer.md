@@ -7,6 +7,10 @@ Date: 2026-08-10
 Accepted — provisional. Superseded in part when the Rev 3 **I0.1** written answer
 arrives.
 
+**2026-08-11 (danish):** sending the regulatory request ([`regulatory-request.md`](../regulatory-request.md))
+is deferred past the demo — revisit only if a data-protection point actually
+surfaces. Not a change to the assumptions below, just to when they get chased.
+
 ## Context
 
 Rev 3 **I0.1** requires the regulatory position in writing before Gate 0: data

@@ -28,8 +28,8 @@ the answer arrives, and the row stays until it does.
 
 | # | Question | Blocks | Owner |
 |---|---|---|---|
-| ~~Q1~~ | **Answered 2026-08-11: both roles held by the Architect (danish).** This is a deliberate deviation from ADR-0019's separation-of-duties design — recorded there as a residual risk, not a closed question. No second person currently reviews Gate 3 sign-off. Brief at [`data-protection-brief.md`](./data-protection-brief.md) still not sent — send it to whoever eventually takes the DPO half if the roles split | — | closed (with residual risk) |
-| Q2 | What is the written regulatory answer? Request drafted at [`regulatory-request.md`](./regulatory-request.md) — **not yet sent, recipient unconfirmed**. | Confirms or refutes the five assumptions in [ADR-0015](./adr/0015-regulatory-assumptions-pending-written-answer.md) | — |
+| ~~Q1~~ | **Answered 2026-08-11: both roles held by the Architect (danish).** This is a deliberate deviation from ADR-0019's separation-of-duties design — recorded there as a residual risk, not a closed question. No second person currently reviews Gate 3 sign-off. Brief at [`data-protection-brief.md`](./data-protection-brief.md) still not sent — send it to whoever eventually takes the DPO half if the roles split. **Context confirmed 2026-08-11 (danish): platform is internal-only — no client-facing exposure, all data self-held within the estate.** Lowers the urgency of splitting the roles; the residual risk stays recorded, not closed | — | closed (with residual risk) |
+| Q2 | What is the written regulatory answer? Request drafted at [`regulatory-request.md`](./regulatory-request.md) — **not yet sent, recipient unconfirmed**. **Deferred 2026-08-11 (danish): decide after the demo, if and when a data-protection point actually surfaces** — no active push to send the request before then. | Confirms or refutes the five assumptions in [ADR-0015](./adr/0015-regulatory-assumptions-pending-written-answer.md) | — |
 | ~~Q3~~ | **Answered 2026-08-10: SSO is not mandatory.** Both candidate stores remain in contention; the SSO disqualifier does not apply | — | closed |
 | ~~Q3b~~ | **Answered 2026-08-10: compliance function plus the ADR-0019 technical owner.** [ADR-0020](./adr/0020-telemetry-access-tiers.md) amended; the disqualifier is now testable. Names still pending via Q1 | — | closed |
 
@@ -84,5 +84,11 @@ Not questions. Decisions whose downside is known and taken deliberately.
 - **Both ADR-0019 roles are held by one person** (the Architect), so there is
   currently no independent countersignature on Gate 3, D3.1 exceptions, or the
   ADR-0015 regulatory assumptions. Accepted 2026-08-11 as a staffing-lead-time
-  problem, not a design one.
+  problem, not a design one. Confirmed 2026-08-11 (danish): platform is
+  internal-only, no client-facing exposure, all data held within the estate —
+  lowers urgency, does not close the risk.
   [ADR-0019](./adr/0019-delegated-data-protection-ownership.md).
+- **Regulatory request (Q2) not sent, and not being chased.** Decided
+  2026-08-11 (danish): revisit after the demo, only if a data-protection point
+  actually comes up. ADR-0015's strictest-reading assumptions stand unverified
+  until then. [ADR-0015](./adr/0015-regulatory-assumptions-pending-written-answer.md).
