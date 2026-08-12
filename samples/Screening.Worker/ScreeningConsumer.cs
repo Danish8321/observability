@@ -37,16 +37,27 @@ internal sealed class ScreeningConsumer(
                 continue;
             }
 
-            await HandleAsync(message.Data, stoppingToken);
+            await HandleAsync(message, stoppingToken);
         }
     }
 
-    private async Task HandleAsync(ApplicationSubmitted submitted, CancellationToken cancellationToken)
+    private async Task HandleAsync(NatsMsg<ApplicationSubmitted> message, CancellationToken cancellationToken)
     {
-        // CONSUMER kind. Paired with the publisher's PRODUCER span, this is what
-        // renders as a message hop rather than two disconnected operations.
+        var submitted = message.Data!;
+
+        // CONSUMER kind, explicitly parented to the producer's span via the
+        // traceparent NATS.Net wrote into the message headers. StartActivity
+        // alone does not do this — it reads Activity.Current, which is only
+        // live for the duration of MoveNextAsync producing this item off the
+        // async-enumerable and has already ended by the time this method
+        // runs. Without an explicit parent context the activity below starts
+        // a disconnected new root instead of joining the producer's trace.
+        var parentContext = message.Headers is null
+            ? default
+            : NatsMsgTelemetryExtensions.GetActivityContext(message.Headers);
+
         using var activity = ScreeningTelemetry.Source.StartActivity(
-            $"{ApplicationPublisher.Subject} process", ActivityKind.Consumer);
+            $"{ApplicationPublisher.Subject} process", ActivityKind.Consumer, parentContext);
 
         KycTelemetry.SetApplicationId(submitted.ApplicationId);
         KycTelemetry.SetCorrelationId(submitted.CorrelationId);
