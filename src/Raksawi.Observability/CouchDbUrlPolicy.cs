@@ -30,7 +30,13 @@ internal static class CouchDbUrlPolicy
     public static string Redact(Uri uri)
     {
         var builder = new StringBuilder();
-        builder.Append(uri.GetLeftPart(UriPartial.Authority));
+
+        // GetLeftPart(Authority) includes userinfo verbatim (scheme://user:pass@host).
+        // Rebuild without it rather than trust callers never put credentials in
+        // the URL — HTTP allows it, and this policy is the only backstop.
+        builder.Append(uri.Scheme);
+        builder.Append("://");
+        builder.Append(uri.Authority);
         builder.Append(RedactPath(uri.AbsolutePath));
 
         if (!string.IsNullOrEmpty(uri.Query))
