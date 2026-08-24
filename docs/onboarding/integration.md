@@ -24,7 +24,7 @@ builder.AddRaksawiObservability(o =>
 
 Set env vars: `OTEL_SERVICE_NAME`, `DEPLOYMENT_ENVIRONMENT`. Optionally `OTEL_SERVICE_INSTANCE_ID` (stable across app pool/process recycle — derived from machine name if absent, ADR-0008).
 
-`OtlpEndpoint` defaults to `http://localhost:4318` — http/protobuf, **not** gRPC (4317 closed estate-wide, unsupported on 4.8). Point it at your collector.
+`OtlpEndpoint` defaults to `http://localhost:4318` — http/protobuf, **not** gRPC (4317 closed estate-wide, unsupported on 4.8). Point it at your collector. Against this repo's own demo compose stack, the collector's host mapping is remapped to **4319** (SigNoz's Foundry ingester holds 4318 there) — see `infra.md`. Fixed bug: setting `Endpoint` programmatically used to silently drop the SDK's auto-appended `/v1/traces`/`/v1/metrics` signal path (404s) — confirm you're on a version past that fix.
 
 Boot fails fast (not silently) if `ServiceName`/`ServiceNamespace` are missing, or `SamplingRatio` is absent outside Development — these are config errors, never telemetry outages (Rev 3 I3.6: telemetry setup never fails a service *for telemetry reasons*, but a missing sampler is a real misconfiguration, not a telemetry failure).
 
@@ -94,11 +94,11 @@ See `samples/Screening.Api/CorrelationMiddleware.cs` for a working example.
 
 ## Verify before trusting it
 
-1. Collector logs show received spans (port **4318**, not 4317)
+1. Collector logs show received spans (port **4318**, not 4317; **4319** against this repo's own demo compose — see `infra.md`)
 2. Your service alone reaches SigNoz/backend
 3. Two services on one trace — HTTP propagation works
-4. A message hop (NATS etc.) on the same trace — **most likely step to fail**
-5. Any redacted field reads correctly (e.g. `url.full` shows `/kyc/{docid}` redacted)
+4. A message hop (NATS etc.) on the same trace — **most likely step to fail** (a consumer building its "process" span as a new root instead of a child of the producer's trace is the concrete failure mode caught here 2026-08-11)
+5. Any redacted field reads correctly (e.g. `url.full` shows `/kyc/{docid}` redacted, and no userinfo/credentials in the URL either)
 6. Search by `correlation.id` and get the whole workflow back
 
 Full worked example, including fault injection to exercise steps 3-6: `samples/README.md` and the Screening reference service (`samples/Screening.Api`, `.Domain`, `.Worker`).

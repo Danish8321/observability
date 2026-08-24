@@ -26,14 +26,14 @@ You are the last line for anything not source-controlled. Nothing reaches storag
 
 ## Demo infra (what exists today)
 
-`deploy/docker-compose.yaml` — NATS (JetStream flag on, but demo only uses core NATS — no redelivery), CouchDB, and the collector. SigNoz is deliberately **not** in this compose file (avoids drift from upstream) — start it from its own repo first, then this stack, on a shared `observability` docker network you create yourself:
+`deploy/docker-compose.yaml` — NATS (JetStream flag on, but demo only uses core NATS — no redelivery), CouchDB, and the collector. SigNoz is deliberately **not** in this compose file (avoids drift from upstream) — install it separately, then bring this stack up:
 
 ```sh
-docker network create observability
-git clone -b main https://github.com/SigNoz/signoz.git
-cd signoz/deploy/docker && docker compose up -d && cd -
+curl -fsSL https://signoz.io/foundry.sh | bash   # SigNoz's docker-compose install is deprecated; use Foundry
 docker compose -f deploy/docker-compose.yaml up -d
 ```
+
+SigNoz's Foundry ingester already owns host port **4318**, so this repo's own collector is remapped to **4319** in `deploy/docker-compose.yaml` (host side only — the collector still listens on 4318 inside its container, and estate-wide production is still 4318). Point service `Otlp__Endpoint` at `http://localhost:4319` when running samples against this compose stack. See `samples/README.md` for the full worked sequence, including `Screening.Api`'s actual port (5206).
 
 🔒 This compose file is explicitly dummy-data-only: no allowlist enforcement exists yet against it (ADR-0022), and it ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — sampling is 1.0, there's no auth hardening, no fail-closed collector policy applied yet.
 
@@ -63,11 +63,11 @@ Until these exist, verifying collector config is manual: apply it, send a real s
 
 ## Manual verification checklist (today)
 
-1. Collector logs show received spans (port 4318)
+1. Collector logs show received spans (port 4318 estate-wide; **4319** against this repo's demo compose — Foundry's own ingester holds 4318 there)
 2. One service reaches the backend end to end
 3. Two services show up on one trace (HTTP propagation across the hop)
-4. A message hop (NATS) lands on the same trace — most likely failure point
-5. Inspect a stored CouchDB-touching span: `url.full` should show the redacted path, not the raw document ID — exact-host-match redaction **fails open**, so a wrong host list means silent non-redaction, not an error
+4. A message hop (NATS) lands on the same trace — most likely failure point (confirmed live 2026-08-11: the worker's process span was starting a disconnected new root trace instead of joining the producer's — fixed, but re-verify this on any consumer span you add)
+5. Inspect a stored CouchDB-touching span: `url.full` should show the redacted path, not the raw document ID **and not userinfo/credentials** — an earlier redaction bug stripped the doc ID but left credentials in cleartext (confirmed live 2026-08-11, fixed) — exact-host-match redaction **fails open**, so a wrong host list means silent non-redaction, not an error
 6. Query by `correlation.id` and confirm the whole workflow assembles — this is the actual deliverable, not span count
 
 ## Reading before touching production shape
