@@ -23,61 +23,6 @@ namespace Raksawi.Observability;
 /// </remarks>
 internal sealed class AttributeAllowlist
 {
-    /// <summary>
-    /// Families allowed by prefix, per docs/allowlist.md. Stable families need
-    /// no attention on a semconv upgrade; that is the point of allowing by
-    /// prefix rather than enumerating.
-    /// </summary>
-    private static readonly string[] AllowedFamilies =
-    [
-        "service.", "deployment.", "vcs.", "cicd.",
-        "telemetry.sdk.", "process.", "host.",
-        "http.", "url.", "server.", "client.", "network.",
-        "db.", "messaging.", "code.", "exception.", "user_agent.",
-    ];
-
-    /// <summary>
-    /// 🔒 Carve-outs denied within allowed families. This table is the
-    /// compliance argument — a family allow is broad by intent, and these are
-    /// what make it safe. Reviewed as security-critical, not as configuration.
-    /// </summary>
-    private static readonly string[] DeniedPrefixes =
-    [
-        // Class 4. Includes Authorization / Set-Cookie. Opt-in upstream, so
-        // this denies a future enablement rather than current behaviour.
-        "http.request.header.",
-        "http.response.header.",
-
-        // Class 3. Parameter values are row data.
-        "db.query.parameter.",
-    ];
-
-    /// <summary>🔒 Carve-outs denied as exact keys.</summary>
-    private static readonly string[] DeniedKeys =
-    [
-        // What SetDbStatementForText = false exists to suppress, plus its
-        // pre-rename form. Nothing emits these today — the database is CouchDB
-        // (ADR-0023) — carved out costlessly so a future SQL component cannot
-        // arrive unnoticed.
-        "db.query.text",
-        "db.statement",
-    ];
-
-    /// <summary>
-    /// Class 3 by default, and the one conditional case in the whole allowlist.
-    /// Denied on ordinary spans; allowed on CouchDB spans, where
-    /// <see cref="CouchDbUrlPolicy"/> has already replaced the document
-    /// identifier and view key with placeholders.
-    /// </summary>
-    /// <remarks>
-    /// Both rows in docs/allowlist.md are literally true because of this split:
-    /// <c>url.full</c>/<c>url.query</c> carry identifiers where routes encode
-    /// them (Rev 3 D0.4b) and are denied; on CouchDB spans the URL *is* the
-    /// database surface (ADR-0023) and the redacted shape is the whole
-    /// diagnostic value of the span, so it survives.
-    /// </remarks>
-    private static readonly string[] CouchDbOnlyKeys = ["url.full", "url.query"];
-
     private readonly HashSet<string> _declaredKeys;
 
     private AttributeAllowlist(HashSet<string> declaredKeys) => _declaredKeys = declaredKeys;
@@ -183,7 +128,7 @@ internal sealed class AttributeAllowlist
     /// <param name="key">The attribute key, exactly as set on the span.</param>
     /// <param name="isCouchDbSpan">
     /// Whether this span is an outbound call to a configured CouchDB host. Only
-    /// <see cref="CouchDbOnlyKeys"/> depend on it.
+    /// <see cref="AllowlistRules.CouchDbOnlyKeys"/> depend on it.
     /// </param>
     public bool IsAllowed(string key, bool isCouchDbSpan)
     {
@@ -195,38 +140,9 @@ internal sealed class AttributeAllowlist
             return true;
         }
 
-        foreach (var denied in DeniedKeys)
-        {
-            if (string.Equals(key, denied, StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        foreach (var prefix in DeniedPrefixes)
-        {
-            if (key.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        foreach (var conditional in CouchDbOnlyKeys)
-        {
-            if (string.Equals(key, conditional, StringComparison.Ordinal))
-            {
-                return isCouchDbSpan;
-            }
-        }
-
-        foreach (var family in AllowedFamilies)
-        {
-            if (key.StartsWith(family, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // Families and carve-outs live in AllowlistRules, which the analyzer
+        // package compiles too. Duplicating them here would let build-time and
+        // run-time enforcement drift apart silently.
+        return AllowlistRules.IsAllowedByFamily(key, isCouchDbSpan);
     }
 }
