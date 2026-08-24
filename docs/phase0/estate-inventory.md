@@ -1,6 +1,6 @@
 # D0.3 — Estate inventory
 
-**Status:** not started
+**Status:** not started — two services sighted via log inspection 2026-08-24 (not one of the five canonical sources below), recorded provisionally under "Sightings" ahead of the real sweep
 **Satisfies:** Rev 3 **D0.3**, **D0.4**, and the D2.9 path determination
 
 ---
@@ -77,6 +77,36 @@ service owner, and it may mean accepting correlation by `trace_id` alone.
 
 **Failure classes absent from the estate** — anything Rev 3 assumed that does not
 apply here.
+
+## Sightings (pre-sweep, provisional)
+
+Not a substitute for the five-source reconciliation below — these two names
+surfaced from a debug/trace log export danish shared 2026-08-24 (ProfileAPI
+and a compliance-backend Ocelot gateway, ~3 min window, 2026-08-19), not from
+querying any of the five canonical sources. Most worksheet fields are unknown
+until this service is actually interviewed.
+
+| Field | ProfileAPI | Compliance backend |
+|---|---|---|
+| Service name | `profile-api` (log-observed name, unconfirmed kebab-case per ADR-0006) | unnamed — sits behind the Ocelot gateway seen in the log; gateway itself may or may not be this service |
+| Namespace | unknown | unknown |
+| Domain | unknown — ADR-0011 answer pending | unknown |
+| Runtime | .NET 10 (Kestrel, log-confirmed) | unknown — Ocelot runs on .NET, version not visible in this log |
+| Hosting | Kestrel, 2 instances behind a load balancer (`10.60.133.13`, `10.60.134.17`), port 4300 | unknown |
+| Transports | HTTP in, NATS (health check registered — actual pub/sub use unconfirmed), JWT bearer auth | HTTP in via Ocelot gateway |
+| `NATS.Net` version | unknown | n/a unless confirmed |
+| Owns AJAX endpoints? | unknown | unknown |
+| Willing to recompile? | n/a — already .NET 10 | unknown |
+| Handles applicant data? | unknown | unknown |
+| Needs `application.id` correlation? | unknown | unknown |
+| Path: agent or SDK | not determined | not determined |
+| Reasoning | insufficient data — awaiting real sweep | insufficient data — awaiting real sweep |
+
+**Live finding, not a worksheet field:** the Ocelot gateway in front of the
+compliance backend has **no route configured for `/health`** — every health
+probe through it 404s (`UnableToFindDownstreamRouteError`). Worth confirming
+whether this reflects current production config before this project's
+demo, since it means the gateway's own health surface is silently broken.
 
 ## Source
 
