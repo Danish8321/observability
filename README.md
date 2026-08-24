@@ -13,7 +13,7 @@ repository owns execution, and records its decisions in
 [`docs/adr/`](./docs/adr/).
 
 Where Rev 3 and an ADR disagree, **Rev 3 wins** unless the ADR explicitly states
-the deviation and its reasoning. Four such deviations exist and are listed in the
+the deviation and its reasoning. Five such deviations exist and are listed in the
 [ADR index](./docs/adr/README.md#deviations-from-rev-3). Nothing deviates
 silently.
 
@@ -142,7 +142,7 @@ docs/phase3/                  store bake-off criteria, failure matrix
 
 Code exists and builds: `Raksawi.Observability`, `Raksawi.Observability.Kyc`,
 the `Screening` sample (API, domain, worker), and unit tests, all on
-`net48;net10.0` except the sample (`net10.0` only). Twenty-three ADRs, a
+`net48;net10.0` except the sample (`net10.0` only). Twenty-four ADRs, a
 glossary, and five Phase 0 worksheets whose data has **not** been collected —
 that data, not more code, is the current bottleneck.
 
@@ -165,5 +165,12 @@ head. Blocking today: the two names in
 unsent. SSO is answered — not mandatory (Q3, 2026-08-10) — and does not
 disqualify either candidate store at I3.11.
 
-Next action is [Phase 0](./docs/phase0/), starting with the performance
-baseline, because it is the only measurement in the programme that expires.
+D0.3's estate inventory closed 2026-08-24 by working position, not by the
+five-source sweep Rev 3 specified — none of those five sources are reachable
+at all ([ADR-0024](./docs/adr/0024-estate-inventory-by-working-position-not-sweep.md)).
+The performance baseline (D0.2, [Q5](./docs/open-questions.md)) is next in
+[Phase 0](./docs/phase0/) and remains the only measurement in the programme
+that expires — but its Run 0 needs the same kind of estate access (IIS logs,
+Windows performance counters, NATS/CouchDB monitoring) that D0.3 just found
+unobtainable. Confirm access before starting it, rather than assuming it will
+go the same way.

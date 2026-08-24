@@ -9,6 +9,9 @@ For teams adding `Raksawi.Observability` (and optionally `Raksawi.Observability.
 
 ## .NET 10 path
 
+Full stepwise walkthrough: [`net10-api-integration.md`](./net10-api-integration.md).
+Quick reference below.
+
 One call:
 
 ```csharp
