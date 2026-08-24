@@ -23,7 +23,7 @@ silently.
 |---|---|---|
 | `Raksawi.Observability` | any estate service | `net48;net10.0` |
 | `Raksawi.Observability.Kyc` | KYC services | `net48;net10.0` |
-| `Raksawi.Observability.Analyzers` (not yet built) | build only, `PrivateAssets="all"` | Roslyn |
+| `Raksawi.Observability.Analyzers` | build only, `PrivateAssets="all"` | `netstandard2.0` (Roslyn) |
 | Collector configuration | platform deployment | PR-gated, `otelcol validate` in CI |
 | Diagnostic query specifications | dashboards and runbooks | store-neutral |
 | Governance | humans and audit | this file, `CONTEXT.md`, `docs/adr/` |
@@ -152,9 +152,18 @@ is not allowlisted, wired as the last processor before the exporter on both
 runtimes (ADR-0003/0017/0018). Before that date this README claimed it existed
 when only the narrow `CouchDbUrlPolicy` redaction did.
 
-Not yet built: `Raksawi.Observability.Analyzers` (build-time enforcement point,
-ADR-0002/0017) and the collector-side allowlist processor (ADR-0009) — so of
-the three enforcement points the design calls for, one of three is real today.
+The build-time enforcement point followed on the same day:
+`TelemetryGovernanceAnalyzer` raises RKS001 (undeclared attribute key),
+RKS002 (Class 2 as a metric dimension, an error) and RKS003 (exporter
+configured by hand), reading the same `AllowedAttributeKey` declarations the
+runtime reads and compiling the same `AllowlistRules` table, so build-time and
+run-time enforcement cannot disagree (ADR-0002/0017). It is deliberately
+literal-only: a key computed at run time is left to the runtime allowlist,
+because a false positive on a governance rule teaches people to suppress
+governance rules.
+
+Not yet built: the collector-side allowlist processor (ADR-0009) — so of the
+three enforcement points the design calls for, two of three are real today.
 🔒 Neither package is strong-named yet, so ADR-0017's provenance check on
 allowlist declarations passes vacuously — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
 after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).

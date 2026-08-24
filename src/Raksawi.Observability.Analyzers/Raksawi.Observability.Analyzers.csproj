@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Analyzers load into the compiler, which runs on .NET Framework inside
+         Visual Studio and on .NET everywhere else. netstandard2.0 is the only
+         target that satisfies both, and is not negotiable for a Roslyn
+         analyzer — this project deliberately does not follow ADR-0012's
+         net48;net10.0 multi-targeting. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Raksawi.Observability.Analyzers</RootNamespace>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>true</IsPackable>
+    <!-- Shipped as an analyzer, never as a runtime reference. Consumers take it
+         with PrivateAssets="all". -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- RS2008: every rule this package raises is tracked in these files, so a
+         rule cannot be added, renamed, or have its severity changed without the
+         change appearing in a reviewable diff. -->
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- One table, two readers. The analyzer cannot reference the mechanism
+         package (netstandard2.0 vs net48;net10.0), so it compiles the same
+         source instead of restating the rules. See AllowlistRules.cs. -->
+    <Compile Include="..\Raksawi.Observability\AllowlistRules.cs" Link="AllowlistRules.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+</Project>

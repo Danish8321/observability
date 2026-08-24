@@ -63,7 +63,7 @@ internal static class AllowlistRules
     /// <summary>
     /// Class 3 by default, and the one conditional pair in the whole allowlist.
     /// Denied on ordinary spans; allowed on CouchDB spans, where
-    /// <see cref="CouchDbUrlPolicy"/> has already replaced the document
+    /// <c>CouchDbUrlPolicy</c> has already replaced the document
     /// identifier and view key with placeholders.
     /// </summary>
     internal static readonly string[] CouchDbOnlyKeys = ["url.full", "url.query"];

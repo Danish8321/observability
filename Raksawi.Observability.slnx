@@ -5,6 +5,7 @@
     <Project Path="samples/Screening.Worker/Screening.Worker.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Raksawi.Observability.Analyzers/Raksawi.Observability.Analyzers.csproj" />
     <Project Path="src/Raksawi.Observability.Kyc/Raksawi.Observability.Kyc.csproj" />
     <Project Path="src/Raksawi.Observability/Raksawi.Observability.csproj" />
   </Folder>
