@@ -70,6 +70,12 @@ public static class RaksawiObservabilityExtensions
                         }
                     };
                 })
+                // Last thing before the exporter, deliberately: it must see
+                // every attribute anything else set, including third-party
+                // instrumentation the analyzer cannot see at all (ADR-0003).
+                .AddProcessor(new AllowlistProcessor(
+                    AttributeAllowlist.FromLoadedAssemblies(),
+                    options.CouchDbHosts.ToArray()))
                 .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/traces")))
             .WithMetrics(metrics => metrics
                 .SetResourceBuilder(resource)

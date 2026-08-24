@@ -7,9 +7,17 @@
     <RootNamespace>Raksawi.Observability.Kyc</RootNamespace>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <!-- Activity is in the BCL on .NET 10 and a package on .NET Framework. -->
-    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="9.0.0" />
+  <ItemGroup>
+    <!-- Policy depends on mechanism, never the reverse (ADR-0001). The
+         dependency became load-bearing with ADR-0017's allowlist declarations:
+         DataClass and AllowedAttributeKeyAttribute are estate vocabulary and
+         live in the mechanism layer, so a policy pack cannot declare its own
+         Class 2 keys without referencing it. -->
+    <ProjectReference Include="..\Raksawi.Observability\Raksawi.Observability.csproj" />
   </ItemGroup>
+
+  <!-- System.Diagnostics.DiagnosticSource is no longer referenced here. Activity
+       is in the BCL on .NET 10 and a package on .NET Framework, and the
+       mechanism project reference above now supplies it on both targets. -->
 
 </Project>

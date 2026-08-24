@@ -1,8 +1,18 @@
 # Attribute allowlist
 
-**Status:** families and carve-outs drafted. Concrete key list **not validated** —
-that requires the Phase 1 fixture and is a Gate 2 item per
+**Status:** families and carve-outs are **implemented and enforced at run time**
+as of 2026-08-24 — `AttributeAllowlist` + `AllowlistProcessor` in the mechanism
+package, wired into both the .NET 10 and 4.8 entry points as the last processor
+before the exporter. The concrete key list is still **not empirically
+validated** — that requires the Phase 1 fixture and remains a Gate 2 item per
 [ADR-0018](./adr/0018-allowlist-composition.md).
+
+🔒 **Known gap: neither package is strong-named yet.** ADR-0017's provenance
+check compares the declaring assembly's public key token against the mechanism
+assembly's own. Until signing is set up, every assembly presents an empty token
+and that check passes vacuously — any assembly in the process can declare an
+allowlist key. The check is implemented and will start biting the moment
+signing lands; it is recorded here rather than papered over.
 
 **Shape:** [ADR-0018](./adr/0018-allowlist-composition.md) — allow by family, deny
 by carve-out, validate empirically.
@@ -77,6 +87,20 @@ primary object rather than reviewing keys one at a time.
 | `db.query.parameter.*` | 3 | Same reasoning |
 | `url.full`, `url.query` **on CouchDB spans** | 3 | 🔒 **The real database carve-out.** CouchDB is HTTP: `GET /{db}/{docid}` puts the document ID in the path and `_view?key=` puts the lookup key in the query string. QD2 answered 2026-08-11 — document IDs are opaque, not derived from applicant data — so this carve-out is now defense-in-depth rather than the compliance-blocking case it was drafted against |
 
+**How the two `url.*` rows resolve in code.** They read as contradictory and are
+not: `url.full`/`url.query` are the allowlist's one *conditional* pair. Denied
+on every ordinary span; allowed only on spans whose `server.address` matches a
+configured `CouchDbHosts` entry, by which point `CouchDbUrlPolicy` has already
+replaced the document ID and view key with placeholders. On a CouchDB span the
+redacted URL shape is the whole diagnostic value of the span, so dropping it
+would discard the reason the span exists.
+
+🔒 The two directions fail **opposite** ways, deliberately. `CouchDbUrlPolicy`'s
+redaction fails *open* — an unconfigured host means the URL is never redacted.
+The allowlist fails *closed* — an unconfigured host means `url.full` is dropped
+entirely. So a host missing from `CouchDbHosts` costs diagnostic value and does
+not leak.
+
 `exception.message` remains allowed on application and HTTP spans, where it
 carries diagnostic value and rarely quotes record contents. It is covered by
 collector-side pattern scanning, which catches shapes it knows and will miss
@@ -93,7 +117,7 @@ ADR-0017.
 | `session.id` | mechanism | Browser page load — ADR-0007 |
 | `message.id` | mechanism | ADR-0007 |
 | `causation.id` | mechanism | ADR-0007 |
-| `tenant.id` | mechanism | **Withheld until D0.3** — [ADR-0011](./adr/0011-estate-vocabulary-versus-domain-vocabulary.md) |
+| `tenant.id` | mechanism | **Withheld** — [ADR-0011](./adr/0011-estate-vocabulary-versus-domain-vocabulary.md). D0.3 closed by working position ([ADR-0024](./adr/0024-estate-inventory-by-working-position-not-sweep.md)) and the position is a uniformly-KYC estate today, so it stays undeclared and is therefore dropped at run time |
 | `application.id` | Kyc | Opaque applicant reference |
 
 🔒 No Class 2 key may be a metric dimension. Rev 3 **D2.1** rule 1, enforced by

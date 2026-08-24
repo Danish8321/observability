@@ -146,10 +146,17 @@ the `Screening` sample (API, domain, worker), and unit tests, all on
 glossary, and five Phase 0 worksheets whose data has **not** been collected —
 that data, not more code, is the current bottleneck.
 
+The library-before-export enforcement point became real on 2026-08-24:
+`AttributeAllowlist` + `AllowlistProcessor` drop any span attribute whose key
+is not allowlisted, wired as the last processor before the exporter on both
+runtimes (ADR-0003/0017/0018). Before that date this README claimed it existed
+when only the narrow `CouchDbUrlPolicy` redaction did.
+
 Not yet built: `Raksawi.Observability.Analyzers` (build-time enforcement point,
-ADR-0003) and the collector-side allowlist processor (also ADR-0003) — so of
-the three enforcement points the design calls for, only one (library before
-export) is real today. Ten accepted ADRs are deliberately unimplemented until
+ADR-0002/0017) and the collector-side allowlist processor (ADR-0009) — so of
+the three enforcement points the design calls for, one of three is real today.
+🔒 Neither package is strong-named yet, so ADR-0017's provenance check on
+allowlist declarations passes vacuously — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
 after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).
 CouchDB URL redaction
 ([ADR-0023](./docs/adr/0023-couchdb-changes-the-database-surface.md)) fails
