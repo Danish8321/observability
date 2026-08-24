@@ -1,6 +1,6 @@
 # D0.3 — Estate inventory
 
-**Status:** not started — two services sighted via log inspection 2026-08-24 (not one of the five canonical sources below), recorded provisionally under "Sightings" ahead of the real sweep
+**Status:** the five-source sweep below is confirmed unattainable — see [ADR-0024](../adr/0024-estate-inventory-by-working-position-not-sweep.md). D0.3 is answered by the working positions recorded in `open-questions.md` (Q6/Q7/Q7c, closed 2026-08-24), not by this worksheet. Two services sighted via log inspection 2026-08-24 are recorded below under "Sightings" as the only concrete rows this register has; new rows accrete as services are actually integrated, per ADR-0024.
 **Satisfies:** Rev 3 **D0.3**, **D0.4**, and the D2.9 path determination
 
 ---
@@ -109,6 +109,8 @@ whether this reflects current production config before this project's
 demo, since it means the gateway's own health surface is silently broken.
 
 ## Source
+
+🔒 **Confirmed 2026-08-24: none of these five sources are reachable at all** — not a lead-time problem, unobtainable. Kept below as the method Rev 3 specified and the reason it doesn't apply here, not as a live instruction. See [ADR-0024](../adr/0024-estate-inventory-by-working-position-not-sweep.md).
 
 **Confirmed 2026-08-10: nothing exists.** No service catalogue, no deployment
 manifest, no CI project list. Nothing to transcribe. This is archaeology, and the

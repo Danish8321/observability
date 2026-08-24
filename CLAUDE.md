@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Governance, shared libraries, and platform config for observability (OpenTelemetry) across the Raksawi estate — .NET 10 and .NET Framework 4.8, NATS and HTTP, SQL/CouchDB. Goal is reduced MTTR, not "installed OpenTelemetry" as an end in itself.
 
-**Authority**: the observability implementation plan Rev 3 owns policy/sequencing. This repo owns execution and records decisions in `docs/adr/`. Where Rev 3 and an ADR disagree, Rev 3 wins unless the ADR states the deviation explicitly (four such deviations, listed in `docs/adr/README.md#deviations-from-rev-3`). Nothing deviates silently.
+**Authority**: the observability implementation plan Rev 3 owns policy/sequencing. This repo owns execution and records decisions in `docs/adr/`. Where Rev 3 and an ADR disagree, Rev 3 wins unless the ADR states the deviation explicitly (five such deviations, listed in `docs/adr/README.md#deviations-from-rev-3`). Nothing deviates silently.
 
 Read `README.md` and `CONTEXT.md` first — README for scope/shape/sequencing, CONTEXT for ubiquitous language (mechanism vs policy layer, allowlist, family, carve-out, data class, the four correlation identifiers). ADRs in `docs/adr/` are the decision record; check the index (`docs/adr/README.md`) before assuming a design choice is undocumented.
 

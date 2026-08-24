@@ -17,7 +17,7 @@ silently.
 | [0008](./0008-service-instance-identity.md) | Service instance identity: supplied if known, derived if not | Accepted |
 | [0009](./0009-governing-agent-instrumented-services.md) | Agent services governed at the collector, fail-closed | Accepted |
 | [0010](./0010-sampling-defaults.md) | Absent sampler configuration is a production boot failure | Accepted |
-| [0011](./0011-estate-vocabulary-versus-domain-vocabulary.md) | Tenancy is estate vocabulary; screening is domain vocabulary | Accepted; `tenant.id` withheld until D0.3 |
+| [0011](./0011-estate-vocabulary-versus-domain-vocabulary.md) | Tenancy is estate vocabulary; screening is domain vocabulary | Accepted; `tenant.id` withheld, justified against the ADR-0024 working position |
 | [0012](./0012-net10-first-sequencing.md) | .NET 10 first, multi-targeted from the first commit | Accepted |
 | [0013](./0013-abort-criterion-becomes-a-reordering.md) | The Phase 0 abort criterion reorders rather than stops | Accepted — deviates from Rev 3 |
 | [0014](./0014-performance-baseline-method.md) | Baselines taken now, both runtimes, repeatable script | Accepted |
@@ -30,6 +30,7 @@ silently.
 | [0021](./0021-service-register-is-the-coverage-denominator.md) | The service register lives here and is reconciled against reality | Accepted |
 | [0022](./0022-demo-first-resequencing.md) | A demo precedes Phase 0; compliance deferred, not cancelled | Accepted — resequences Rev 3 |
 | [0023](./0023-couchdb-changes-the-database-surface.md) | CouchDB moves database risk from statement text to the URL | Accepted — corrects 0003, 0004, 0018 |
+| [0024](./0024-estate-inventory-by-working-position-not-sweep.md) | D0.3's five-source sweep is unattainable; working positions stand in its place | Accepted — deviates from Rev 3 |
 
 ## Deviations from Rev 3
 
@@ -47,6 +48,8 @@ are the places this repository knowingly differs, each argued in its own ADR:
 - **0004**, **0009** — the collector acts as a primary control rather than the
   net **I3.2** describes, in the two cases where no source-side control exists:
   free text, and processes containing none of our code.
+- **0024** — **D0.3**'s five-source estate inventory is replaced by recorded
+  working positions, because none of the five sources are reachable at all.
 
 ## Grouping
 
@@ -55,7 +58,7 @@ are the places this repository knowingly differs, each argued in its own ADR:
 **Telemetry schema** — 0006, 0007, 0008
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
-**Estate facts** — 0023
+**Estate facts** — 0023, 0024
 
 ## Deferred by ADR-0022 until after the demo
 
