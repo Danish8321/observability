@@ -1,28 +1,47 @@
 #!/usr/bin/env sh
 # Proves collector policy and the declared allowlist express the same rules.
 #
-# Blocked, not implemented: the allowlist has no code-side declaration yet.
-# ADR-0017 puts the source of truth in assembly attributes; docs/allowlist.md
-# says explicitly "concrete key list not validated" (Gate 2, ADR-0018), and no
-# package in src/ emits those attributes today. deploy/collector/config.yaml
-# says the same thing from the other side: "The allowlist processor that
-# ADR-0003 requires is NOT here."
+# Both sides now exist. The code side is AllowlistRules.cs plus the
+# [assembly: AllowedAttributeKey] declarations (ADR-0017); the collector side is
+# transform/allowlist in deploy/collector/config.yaml (ADR-0009). They are two
+# statements of one rule, because the collector has to govern services that
+# contain none of our code, so the drift they can develop is the thing worth
+# testing.
 #
-# There is nothing to diff yet. A real contract.sh needs, at minimum:
-#   1. a reader that extracts the declared allowlist from assembly attributes
-#      (families + carve-outs) — does not exist
-#   2. a reader that extracts the enforced key set from the collector's
-#      attribute-filtering processor — the processor itself does not exist
-#   3. a comparison that fails on any key the collector allows that the
-#      allowlist doesn't declare, or vice versa
+# CollectorAllowlistContractTests reads the shipped config file — not a copy —
+# and asserts every family, every carve-out, and every never-a-metric-dimension
+# key from the code side appears on the collector side, that the keep is the
+# last span statement (so anything unnamed is gone by default), and that
+# error_mode is propagate (so an erroring statement drops the batch rather than
+# passing attributes through unfiltered).
 #
-# This script fails loudly instead of faking a pass, per the project's
-# evidence rule. Replace this file when the allowlist is declared in code and
-# the collector gains an attribute-filter processor (see docs/adr/0017,
-# docs/adr/0018, docs/allowlist.md).
+# What this does NOT prove: that either side is correct. Rev 3 Gate 3 verifies
+# redaction by inspecting stored data, which is e2e.sh's job, not this one.
 set -eu
 
-echo "contract.sh: no code-side allowlist declaration and no collector-side" >&2
-echo "allowlist processor exist yet (see comment at the top of this script for" >&2
-echo "what each side is missing). There is nothing to compare. Not a pass." >&2
-exit 1
+cd "$(dirname "$0")/../.."
+
+echo "== allowlist contract: code side vs collector side =="
+dotnet test --nologo -c Release \
+    --filter "FullyQualifiedName~CollectorAllowlistContractTests"
+
+echo "== collector config validate =="
+if command -v otelcol >/dev/null 2>&1; then
+    otelcol validate --config=deploy/collector/config.yaml
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    storage_dir="$(mktemp -d)"
+    trap 'rm -rf "$storage_dir"' EXIT
+    MSYS_NO_PATHCONV=1 docker run --rm \
+        -v "$(pwd)/deploy/collector":/etc/otelcol \
+        -v "$storage_dir":/var/lib/otelcol/storage \
+        otel/opentelemetry-collector-contrib:0.140.1 \
+        validate --config=/etc/otelcol/config.yaml
+else
+    # The contract tests above compare text. Only otelcol itself can say the
+    # OTTL parses, so a missing validator is a failure here rather than a skip.
+    echo "Neither otelcol nor a running docker daemon is available, so the" >&2
+    echo "OTTL in transform/allowlist is unvalidated. Not a pass." >&2
+    exit 1
+fi
+
+echo "OK"

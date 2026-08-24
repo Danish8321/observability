@@ -108,7 +108,7 @@ exist; two of them fail on purpose.
 | `check.sh` | Both targets build, formatting holds | working |
 | `test-fast.sh` | Unit tests, no collector/store/network | working |
 | `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
-| `contract.sh` | Collector policy and the declared allowlist express the same rules | **honest-failing stub** — no code-side allowlist declaration (ADR-0017) and no collector allowlist processor (ADR-0003) exist yet, so there is nothing to diff |
+| `contract.sh` | Collector policy and the declared allowlist express the same rules | working — but **fails without a validator**: the text comparison passes, and `otelcol validate` is required before the OTTL can be called correct |
 | `e2e.sh` | Assertions against *received* telemetry, not configuration | **honest-failing stub** — no live collector/store stack with allowlist enforcement to assert against |
 
 `contract.sh` and `e2e.sh` exit 1 with an explanation rather than passing
@@ -162,8 +162,21 @@ literal-only: a key computed at run time is left to the runtime allowlist,
 because a false positive on a governance rule teaches people to suppress
 governance rules.
 
-Not yet built: the collector-side allowlist processor (ADR-0009) — so of the
-three enforcement points the design calls for, two of three are real today.
+The collector-side point (ADR-0009) followed: `transform/allowlist` in
+`deploy/collector/config.yaml` denies the carve-outs, resolves the
+`url.full`/`url.query` conditional against the CouchDB host list, then keeps by
+family — so anything unnamed is gone by default — and refuses the Class 2 keys
+as metric dimensions on the metrics pipeline. `error_mode: propagate` makes it
+fail closed. This is the *only* enforcement point that reaches
+agent-instrumented 4.8 services. `contract.sh` fails if it and
+`AllowlistRules.cs` drift.
+
+All three enforcement points now exist. Two caveats, both open: the OTTL has
+**not** yet been through `otelcol validate` (no validator available on the
+machine it was written on, and `contract.sh` fails rather than skipping), and
+the collector filters span and datapoint attributes but **not resource
+attributes**, which an agent-instrumented service supplies itself via
+`OTEL_RESOURCE_ATTRIBUTES`.
 🔒 Neither package is strong-named yet, so ADR-0017's provenance check on
 allowlist declarations passes vacuously — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
 after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).

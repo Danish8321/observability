@@ -1,9 +1,11 @@
 # OpenTelemetry Collector — demo configuration.
 #
-# Demo scope only (ADR-0022). The allowlist processor that ADR-0003 requires is
-# NOT here: it is generated from assembly attributes (ADR-0017) and that work is
-# deferred past the demo. This configuration is therefore safe for staging and
-# NOT safe for production KYC traffic.
+# Demo scope only (ADR-0022) in its exporter, storage, and environment
+# settings. The allowlist itself is not demo-scoped: transform/allowlist below
+# is the third ADR-0003 enforcement point, and it is the ONLY one that applies
+# to agent-instrumented .NET Framework services, which contain none of our code
+# (ADR-0009). It is written by hand rather than generated, and a unit test
+# (CollectorAllowlistContractTests) fails if it and AllowlistRules.cs drift.
 
 receivers:
   otlp:
@@ -26,6 +28,55 @@ processors:
 
   # Rev 3 I3.6: telemetry must never participate in business request success.
   # The collector holds data rather than pushing back on producers.
+
+  # 🔒 The allowlist. Deny by carve-out, then keep by family — the keep is last
+  # so anything not named is gone by default (ADR-0003, ADR-0018).
+  #
+  # error_mode: propagate is the fail-closed choice. A statement that errors
+  # takes the batch down rather than passing unfiltered attributes through to
+  # storage. Losing telemetry is recoverable; storing Class 3 data is not.
+  transform/allowlist:
+    error_mode: propagate
+
+    # Known gap: this filters span and datapoint attributes, not RESOURCE
+    # attributes. Resource is built by ServiceIdentity.cs in-process for our own
+    # services, but an agent-instrumented service supplies its own via
+    # OTEL_RESOURCE_ATTRIBUTES, and nothing here constrains it. Recorded rather
+    # than papered over; closing it needs the resource families settled at
+    # Gate 2.
+
+    trace_statements:
+      - context: span
+        statements:
+          # Carve-outs first: these live inside otherwise-allowed families, so
+          # the keep below would let them through.
+          - delete_matching_keys(attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
+          - delete_matching_keys(attributes, "^(db\\.query\\.text|db\\.statement)$")
+
+          # The one conditional pair. url.full and url.query are Class 3 by
+          # default and survive only on a call to a known CouchDB host, where
+          # CouchDbUrlPolicy has already replaced the document identifier.
+          # Unknown host means dropped: this side fails CLOSED, deliberately
+          # the opposite of the in-process redaction, which fails open. A host
+          # missing from this list costs diagnostics, never privacy.
+          - delete_matching_keys(attributes, "^url\\.(full|query)$") where attributes["server.address"] == nil
+          - delete_matching_keys(attributes, "^url\\.(full|query)$") where attributes["server.address"] != nil and IsMatch(attributes["server.address"], "^couchdb(\\.raksawi\\.internal)?$") == false
+
+          # Default deny. Families, then the declared Class 2 keys (ADR-0017),
+          # which are exact matches and never prefixes.
+          - keep_matching_keys(attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
+
+    metric_statements:
+      - context: datapoint
+        statements:
+          # 🔒 Rev 3 D2.1 rule 1. Class 2 is permitted on spans and refused as a
+          # metric dimension, so this is a different rule from the span keep
+          # above rather than a stricter copy of it. An agent-instrumented
+          # service has no analyzer and no in-process processor, so for those
+          # services this line is the whole of the rule.
+          - delete_matching_keys(attributes, "^(application\\.id|correlation\\.id|session\\.id|causation\\.id|message\\.id|tenant\\.id)$")
+          - delete_matching_keys(attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
+          - delete_matching_keys(attributes, "^(db\\.query\\.text|db\\.statement|url\\.full|url\\.query)$")
 
   resource:
     attributes:
@@ -59,11 +110,11 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
+      processors: [memory_limiter, transform/allowlist, resource, batch]
       exporters: [otlp/signoz]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
+      processors: [memory_limiter, transform/allowlist, resource, batch]
       exporters: [otlp/signoz]
   telemetry:
     metrics:
