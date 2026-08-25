@@ -108,7 +108,7 @@ exist; two of them fail on purpose.
 | `check.sh` | Both targets build, formatting holds | working |
 | `test-fast.sh` | Unit tests, no collector/store/network | working |
 | `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
-| `contract.sh` | Collector policy and the declared allowlist express the same rules | working — but **fails without a validator**: the text comparison passes, and `otelcol validate` is required before the OTTL can be called correct |
+| `contract.sh` | Collector policy and the declared allowlist express the same rules | working — comparison passes and `otelcol validate` accepts the OTTL (2026-08-25). Still **fails** on a machine with neither `otelcol` nor a running docker daemon, by design |
 | `e2e.sh` | Assertions against *received* telemetry, not configuration | **honest-failing stub** — no live collector/store stack with allowlist enforcement to assert against |
 
 `contract.sh` and `e2e.sh` exit 1 with an explanation rather than passing
@@ -171,12 +171,14 @@ fail closed. This is the *only* enforcement point that reaches
 agent-instrumented 4.8 services. `contract.sh` fails if it and
 `AllowlistRules.cs` drift.
 
-All three enforcement points now exist. Two caveats, both open: the OTTL has
-**not** yet been through `otelcol validate` (no validator available on the
-machine it was written on, and `contract.sh` fails rather than skipping), and
-the collector filters span and datapoint attributes but **not resource
-attributes**, which an agent-instrumented service supplies itself via
-`OTEL_RESOURCE_ATTRIBUTES`.
+All three enforcement points now exist, and the OTTL was accepted by
+`otelcol validate` on 2026-08-25. One caveat remains open: the collector filters
+span and datapoint attributes but **not resource attributes**, which an
+agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`.
+
+Validation is not verification. `otelcol validate` proves the OTTL parses and
+the processors construct; it does not watch a single attribute get dropped.
+That is `e2e.sh`'s job and it remains an honest-failing stub.
 Both packages are strong-named as of 2026-08-25, so ADR-0017's provenance
 check on allowlist declarations is real at both enforcement points rather than
 passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until

@@ -63,7 +63,7 @@ Data classes 3 (restricted PII) and 4 (secrets) must appear **nowhere** — not 
 
 `contract.sh` compares text and `otelcol validate` parses the OTTL. Neither watches a span go through. Don't claim redaction or allowlist enforcement is "in place" from either — apply the config, send a real span through the demo stack, and inspect what actually lands in the store. That is the gap `e2e.sh` exists to close.
 
-🔒 Two known gaps, both open: the OTTL in `transform/allowlist` has **not** yet been through `otelcol validate` (it was written on a machine with neither `otelcol` nor a running docker daemon), and the allowlist filters span and datapoint attributes but **not resource attributes** — which an agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`.
+🔒 One known gap, open: the allowlist filters span and datapoint attributes but **not resource attributes** — which an agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`. The OTTL itself was accepted by `otelcol validate` on 2026-08-25, which proves it parses and the processors construct — not that anything was dropped.
 
 ## Manual verification checklist (today)
 
