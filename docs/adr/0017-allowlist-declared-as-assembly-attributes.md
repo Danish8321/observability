@@ -42,6 +42,23 @@ token of the declaring assembly.
 Both packages are strong-named. The same attribute declarations are the source
 for the runtime allowlist.
 
+### Implemented 2026-08-25
+
+Signing landed with `raksawi.snk`, committed to the repository. A strong-name
+key is an identity marker rather than a secret: it stops accidental
+substitution, which is exactly the bar this ADR sets. Keeping the private half
+out of the repository would put key management and rotation into a repository
+run at roughly 0.25 FTE — the cost this ADR already declined to pay for signing
+manifest content, buying nothing against the stated threat model.
+
+Until that date the provenance check existed but compared empty tokens, so it
+passed vacuously at run time, and the analyzer did not check provenance at all.
+Both now compare against the mechanism assembly's public key. Both fail *open*
+when there is nothing to compare — an unsigned build accepts every declaration
+rather than silently emptying the allowlist — so a build that loses its signing
+configuration loses provenance quietly, and a test asserts the assembly is
+signed for that reason.
+
 ## Consequences
 
 - **There is no manifest, so there is nothing to drift.** ADR-0002 required a

@@ -7,12 +7,19 @@ before the exporter. The concrete key list is still **not empirically
 validated** — that requires the Phase 1 fixture and remains a Gate 2 item per
 [ADR-0018](./adr/0018-allowlist-composition.md).
 
-🔒 **Known gap: neither package is strong-named yet.** ADR-0017's provenance
-check compares the declaring assembly's public key token against the mechanism
-assembly's own. Until signing is set up, every assembly presents an empty token
-and that check passes vacuously — any assembly in the process can declare an
-allowlist key. The check is implemented and will start biting the moment
-signing lands; it is recorded here rather than papered over.
+🔒 **Provenance is live as of 2026-08-25.** Both packages are strong-named
+(`raksawi.snk`, committed — a strong-name key is an identity marker, not a
+secret). ADR-0017's check compares the declaring assembly's public key against
+the mechanism assembly's own, at run time in `AttributeAllowlist` and at compile
+time in the analyzer, so an assembly outside the closed set cannot declare an
+allowlist key at either point. Before signing, both checks passed vacuously on
+empty tokens and any assembly in the process could declare anything.
+
+Both fail *open* when there is nothing to compare — an unsigned build accepts
+every declaration rather than silently emptying the allowlist, which would be
+the worse failure. So a build that loses its signing configuration loses
+provenance quietly; `The_mechanism_assembly_is_strong_named` is the test that
+catches it.
 
 **Shape:** [ADR-0018](./adr/0018-allowlist-composition.md) — allow by family, deny
 by carve-out, validate empirically.

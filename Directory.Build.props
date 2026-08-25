@@ -13,4 +13,21 @@
     <OpenTelemetryVersion>1.17.0</OpenTelemetryVersion>
   </PropertyGroup>
 
+  <!-- 🔒 Strong-naming. ADR-0017's provenance check compares the public key
+       token of the assembly declaring an allowlist key against ours, and until
+       this existed every assembly presented an empty token and the check passed
+       vacuously — an unsigned third-party assembly in the process could declare
+       any key it liked.
+
+       The key is committed deliberately. A strong-name key is an identity
+       marker, not a secret: it stops accidental substitution, not a determined
+       developer, which is the bar ADR-0017 states plainly. Keeping the private
+       half out of the repository would mean key management and rotation in a
+       repository run at roughly 0.25 FTE — the cost that ADR rejected for
+       manifest signing, and it buys nothing against the stated threat model. -->
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)raksawi.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
 </Project>

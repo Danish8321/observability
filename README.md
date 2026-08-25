@@ -177,8 +177,9 @@ machine it was written on, and `contract.sh` fails rather than skipping), and
 the collector filters span and datapoint attributes but **not resource
 attributes**, which an agent-instrumented service supplies itself via
 `OTEL_RESOURCE_ATTRIBUTES`.
-🔒 Neither package is strong-named yet, so ADR-0017's provenance check on
-allowlist declarations passes vacuously — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
+Both packages are strong-named as of 2026-08-25, so ADR-0017's provenance
+check on allowlist declarations is real at both enforcement points rather than
+passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
 after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).
 CouchDB URL redaction
 ([ADR-0023](./docs/adr/0023-couchdb-changes-the-database-surface.md)) fails

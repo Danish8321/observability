@@ -105,6 +105,32 @@ public sealed class TelemetryGovernanceAnalyzerTests
     }
 
     [Fact]
+    public void An_unsigned_assembly_cannot_declare_its_own_key()
+    {
+        // 🔒 ADR-0017's closed set. The snippet compilation is unsigned, so its
+        // declaration carries a different public key from the mechanism
+        // assembly's and is ignored — otherwise any project could allowlist
+        // anything by writing one line, and the analyzer would be a formality.
+        // Until raksawi.snk existed this test could not fail.
+        Assert.Equal(
+            ["RKS001"],
+            Diagnose("""activity.SetTag("smuggled.key", "x");""",
+                declare: """[assembly: Raksawi.Observability.AllowedAttributeKey("smuggled.key", Raksawi.Observability.DataClass.Infrastructure)]"""));
+    }
+
+    [Fact]
+    public void The_mechanism_assembly_is_strong_named()
+    {
+        // The provenance check above compares public key tokens and fails open
+        // when there is nothing to compare. An unsigned build would therefore
+        // pass every test in this class while enforcing nothing.
+        var token = typeof(DataClass).Assembly.GetName().GetPublicKeyToken();
+
+        Assert.NotNull(token);
+        Assert.NotEmpty(token);
+    }
+
+    [Fact]
     public void Hand_configured_exporter_raises_RKS003()
     {
         Assert.Equal(["RKS003"], Diagnose("Pipeline.AddOtlpExporter();"));
@@ -115,11 +141,13 @@ public sealed class TelemetryGovernanceAnalyzerTests
     /// <c>Activity</c> and a <c>Counter</c> in scope, and returns the ids of
     /// the diagnostics this analyzer raised, in source order.
     /// </summary>
-    private static string[] Diagnose(string body)
+    private static string[] Diagnose(string body, string declare = "")
     {
         var source = $$"""
             using System.Diagnostics;
             using System.Diagnostics.Metrics;
+
+            {{declare}}
 
             internal static class Pipeline
             {

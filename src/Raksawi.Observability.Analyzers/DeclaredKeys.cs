@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
@@ -27,21 +28,44 @@ internal static class DeclaredKeys
     {
         var keys = new HashSet<string>();
 
-        Read(compilation.Assembly, keys);
+        // 🔒 Provenance, matching what AttributeAllowlist does reflectively at
+        // run time (ADR-0017). Without this the analyzer would honour a
+        // declaration from any assembly at all while the runtime rejected it —
+        // the two enforcement points disagreeing, with the build being the
+        // permissive one. The identity is the mechanism assembly's, taken from
+        // the compilation rather than hard-coded.
+        var expected = compilation.GetTypeByMetadataName(AttributeMetadataName)
+            ?.ContainingAssembly.Identity.PublicKey ?? default;
+
+        Read(compilation.Assembly, keys, expected);
 
         foreach (var reference in compilation.References)
         {
             if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol referenced)
             {
-                Read(referenced, keys);
+                Read(referenced, keys, expected);
             }
         }
 
         return keys;
     }
 
-    private static void Read(IAssemblySymbol assembly, HashSet<string> keys)
+    /// <remarks>
+    /// Unsigned build: nothing to compare against, so every assembly is
+    /// accepted. Fails open on purpose — the alternative is silently emptying
+    /// the allowlist, a worse failure than the weak provenance it protects.
+    /// The runtime makes the same choice, in <c>HasMatchingToken</c>.
+    /// </remarks>
+    private static bool HasMatchingKey(IAssemblySymbol assembly, ImmutableArray<byte> expected) =>
+        expected.IsDefaultOrEmpty || assembly.Identity.PublicKey.SequenceEqual(expected);
+
+    private static void Read(IAssemblySymbol assembly, HashSet<string> keys, ImmutableArray<byte> expected)
     {
+        if (!HasMatchingKey(assembly, expected))
+        {
+            return;
+        }
+
         foreach (var attribute in assembly.GetAttributes())
         {
             if (attribute.AttributeClass?.ToDisplayString() != AttributeMetadataName)
