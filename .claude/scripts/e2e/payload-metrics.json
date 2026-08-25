@@ -1,0 +1,25 @@
+{
+  "resourceMetrics": [{
+    "resource": { "attributes": [
+      { "key": "service.name", "value": { "stringValue": "e2e-probe" } }
+    ]},
+    "scopeMetrics": [{
+      "metrics": [{
+        "name": "screening.abandoned",
+        "sum": {
+          "aggregationTemporality": 2,
+          "isMonotonic": true,
+          "dataPoints": [{
+            "asInt": "1",
+            "startTimeUnixNano": "1700000000000000000",
+            "timeUnixNano": "1700000001000000000",
+            "attributes": [
+              { "key": "reason", "value": { "stringValue": "provider_timeout" } },
+              { "key": "correlation.id", "value": { "stringValue": "corr-1" } }
+            ]
+          }]
+        }
+      }]
+    }]
+  }]
+}

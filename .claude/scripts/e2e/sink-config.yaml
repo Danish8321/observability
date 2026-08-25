@@ -1,0 +1,25 @@
+# The e2e sink. Stands in for the store so that what is asserted on is
+# telemetry that came out of the collector under test, after its policy ran.
+#
+# Named signoz-ingester-1 by the container, which is the endpoint the shipped
+# deploy/collector/config.yaml already exports to — so that config runs here
+# byte-for-byte unmodified. A test that edits the thing it is testing proves
+# nothing.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  file:
+    path: /out/received.json
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file]
+    metrics:
+      receivers: [otlp]
+      exporters: [file]

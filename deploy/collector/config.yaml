@@ -50,8 +50,8 @@ processors:
         statements:
           # Carve-outs first: these live inside otherwise-allowed families, so
           # the keep below would let them through.
-          - delete_matching_keys(attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
-          - delete_matching_keys(attributes, "^(db\\.query\\.text|db\\.statement)$")
+          - delete_matching_keys(span.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
+          - delete_matching_keys(span.attributes, "^(db\\.query\\.text|db\\.statement)$")
 
           # The one conditional pair. url.full and url.query are Class 3 by
           # default and survive only on a call to a known CouchDB host, where
@@ -59,12 +59,12 @@ processors:
           # Unknown host means dropped: this side fails CLOSED, deliberately
           # the opposite of the in-process redaction, which fails open. A host
           # missing from this list costs diagnostics, never privacy.
-          - delete_matching_keys(attributes, "^url\\.(full|query)$") where attributes["server.address"] == nil
-          - delete_matching_keys(attributes, "^url\\.(full|query)$") where attributes["server.address"] != nil and IsMatch(attributes["server.address"], "^couchdb(\\.raksawi\\.internal)?$") == false
+          - delete_matching_keys(span.attributes, "^url\\.(full|query)$") where span.attributes["server.address"] == nil
+          - delete_matching_keys(span.attributes, "^url\\.(full|query)$") where span.attributes["server.address"] != nil and IsMatch(span.attributes["server.address"], "^couchdb(\\.raksawi\\.internal)?$") == false
 
           # Default deny. Families, then the declared Class 2 keys (ADR-0017),
           # which are exact matches and never prefixes.
-          - keep_matching_keys(attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
+          - keep_matching_keys(span.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
 
     metric_statements:
       - context: datapoint
@@ -74,9 +74,9 @@ processors:
           # above rather than a stricter copy of it. An agent-instrumented
           # service has no analyzer and no in-process processor, so for those
           # services this line is the whole of the rule.
-          - delete_matching_keys(attributes, "^(application\\.id|correlation\\.id|session\\.id|causation\\.id|message\\.id|tenant\\.id)$")
-          - delete_matching_keys(attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
-          - delete_matching_keys(attributes, "^(db\\.query\\.text|db\\.statement|url\\.full|url\\.query)$")
+          - delete_matching_keys(datapoint.attributes, "^(application\\.id|correlation\\.id|session\\.id|causation\\.id|message\\.id|tenant\\.id)$")
+          - delete_matching_keys(datapoint.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
+          - delete_matching_keys(datapoint.attributes, "^(db\\.query\\.text|db\\.statement|url\\.full|url\\.query)$")
 
   resource:
     attributes:

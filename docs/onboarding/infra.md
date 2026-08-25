@@ -59,11 +59,13 @@ Data classes 3 (restricted PII) and 4 (secrets) must appear **nowhere** — not 
 | `test-fast.sh` | unit tests only | exists |
 | `test-full.sh` | above + `otelcol validate` on collector config | exists |
 | `contract.sh` | collector policy and declared allowlist express the same rules | exists — the code/collector comparison passes; the `otelcol validate` step **fails** unless `otelcol` or a running docker daemon is available, by design rather than skipping |
-| `e2e.sh` | assertions against *received* telemetry, not configuration — required because Rev 3 Gate 3 needs redaction verified against stored data, not intent | **not yet written** |
+| `e2e.sh` | assertions against *received* telemetry, not configuration — required because Rev 3 Gate 3 needs redaction verified against stored data, not intent | exists — nine assertions pass (2026-08-25); needs a running docker daemon and **fails** without one, by design |
 
-`contract.sh` compares text and `otelcol validate` parses the OTTL. Neither watches a span go through. Don't claim redaction or allowlist enforcement is "in place" from either — apply the config, send a real span through the demo stack, and inspect what actually lands in the store. That is the gap `e2e.sh` exists to close.
+`contract.sh` compares text and `otelcol validate` parses the OTTL. Neither watches a span go through. Don't claim redaction or allowlist enforcement is "in place" from either. `e2e.sh` is the one that does: it stands up the shipped `deploy/collector/config.yaml` **unmodified** in front of a sink container named `signoz-ingester-1`, posts OTLP/JSON probe telemetry, and greps what the sink received. Editing the config it tests would prove nothing, so it is not templated or overlaid.
 
-🔒 One known gap, open: the allowlist filters span and datapoint attributes but **not resource attributes** — which an agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`. The OTTL itself was accepted by `otelcol validate` on 2026-08-25, which proves it parses and the processors construct — not that anything was dropped.
+🔒 One known gap, open: the allowlist filters span and datapoint attributes but **not resource attributes** — which an agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`. `e2e.sh` shares that gap: its probe payload carries span and datapoint attributes only, so nothing there covers resource.
+
+One operational note the demo stack shares: a fresh docker named volume is root-owned and the collector image runs as uid 10001, so its `file_storage` queue directory has to be chowned before first start. `e2e.sh` does this with a throwaway busybox container — the collector image is distroless and has no shell.
 
 ## Manual verification checklist (today)
 

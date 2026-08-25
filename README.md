@@ -101,7 +101,8 @@ of a constraint that is expensive to retrofit.
 ## Verification
 
 Nothing is described as working without evidence from a named script. All five
-exist; two of them fail on purpose.
+exist and all five pass; two of them still fail by design on a machine without
+docker, rather than skipping.
 
 | Script | Proves | Status |
 |---|---|---|
@@ -109,11 +110,17 @@ exist; two of them fail on purpose.
 | `test-fast.sh` | Unit tests, no collector/store/network | working |
 | `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
 | `contract.sh` | Collector policy and the declared allowlist express the same rules | working — comparison passes and `otelcol validate` accepts the OTTL (2026-08-25). Still **fails** on a machine with neither `otelcol` nor a running docker daemon, by design |
-| `e2e.sh` | Assertions against *received* telemetry, not configuration | **honest-failing stub** — no live collector/store stack with allowlist enforcement to assert against |
+| `e2e.sh` | Assertions against *received* telemetry, not configuration | working — nine assertions pass against telemetry that came out of the collector (2026-08-25). **Fails** without a running docker daemon, by design |
 
 `contract.sh` and `e2e.sh` exit 1 with an explanation rather than passing
-vacuously or being omitted. They turn green only when their prerequisites
-land, per the sequencing below.
+vacuously or being omitted when their prerequisites are absent.
+
+`e2e.sh` runs two collectors: the one under test loads
+`deploy/collector/config.yaml` **byte-for-byte unmodified**, and the sink is
+named `signoz-ingester-1` — the endpoint that config already exports to — so
+what is asserted on is what survived the policy. A test that edits the thing it
+is testing proves nothing. It covers the collector enforcement point only; the
+in-process allowlist and the analyzer have their own unit tests.
 
 `e2e.sh` exists because Rev 3 **Gate 3** requires redaction verified by
 inspecting stored data. A test that reads configuration would verify intent, not
@@ -178,7 +185,10 @@ agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`.
 
 Validation is not verification. `otelcol validate` proves the OTTL parses and
 the processors construct; it does not watch a single attribute get dropped.
-That is `e2e.sh`'s job and it remains an honest-failing stub.
+That is `e2e.sh`'s job, and as of 2026-08-25 it does it: `Authorization`,
+`db.statement`, a hand-rolled `applicantIdentifier`, and `url.full` on a
+non-CouchDB span were each observed absent from received telemetry, with
+`url.full` on the CouchDB span in the same payload observed present.
 Both packages are strong-named as of 2026-08-25, so ADR-0017's provenance
 check on allowlist declarations is real at both enforcement points rather than
 passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
