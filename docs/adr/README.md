@@ -31,6 +31,7 @@ silently.
 | [0022](./0022-demo-first-resequencing.md) | A demo precedes Phase 0; compliance deferred, not cancelled | Accepted — resequences Rev 3 |
 | [0023](./0023-couchdb-changes-the-database-surface.md) | CouchDB moves database risk from statement text to the URL | Accepted — corrects 0003, 0004, 0018 |
 | [0024](./0024-estate-inventory-by-working-position-not-sweep.md) | D0.3's five-source sweep is unattainable; working positions stand in its place | Accepted — deviates from Rev 3 |
+| [0025](./0025-domain-attributes-are-declared-not-a-family.md) | Domain attributes are declared individually, not allowed as a family | Accepted — extends 0018 |
 
 ## Deviations from Rev 3
 
@@ -54,7 +55,7 @@ are the places this repository knowingly differs, each argued in its own ADR:
 ## Grouping
 
 **Package shape** — 0001, 0011, 0012, 0017
-**Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020
+**Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025
 **Telemetry schema** — 0006, 0007, 0008
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
@@ -64,7 +65,14 @@ are the places this repository knowingly differs, each argued in its own ADR:
 
 Accepted and unimplemented. Deferred is not cancelled, and the list exists so
 that "we never did that" stays distinguishable from "we decided not to yet":
-0002, 0003, 0014, 0015, 0016, 0017, 0018, 0019, 0020, 0021.
+0014, 0015, 0016, 0019, 0020, 0021.
+
+**0002, 0003, 0017 and 0018 came off this list on 2026-08-24/25**, ahead of the
+demo rather than after it. All three ADR-0003 enforcement points now exist —
+analyzer at build, library before export, collector before storage — and the
+allowlist is declared in code per 0017/0018. Implementing them early was cheap
+once the shared rules table existed, and it immediately found eight attribute
+keys the reference service had been dropping silently ([0025](./0025-domain-attributes-are-declared-not-a-family.md)).
 
 The boundary that makes deferral safe: **the demo does not touch production KYC
 traffic.**

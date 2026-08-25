@@ -178,9 +178,50 @@ activity?.SetApplicationId(applicationId);   // Class 2 — spans only, no metri
 Data classes 3 (restricted PII) and 4 (secrets) appear **nowhere** in
 telemetry — not spans, logs, or metrics. If you're about to tag something
 that might be class 3/4, stop and check
-[`docs/allowlist.md`](../allowlist.md) first; the analyzer catches unknown
-keys at build once it exists (not yet built — see `README.md`'s current
-state).
+[`docs/allowlist.md`](../allowlist.md) first.
+
+### When the build says RKS001
+
+```
+error RKS001: Attribute key 'screening.outcome' is not allowlisted and will be
+dropped before export.
+```
+
+This is not a lint complaint. It is the build telling you the tag you just
+wrote reaches no store — the runtime allowlist drops it, and without the
+diagnostic you would find out during an incident, from a query that returns
+nothing.
+
+Two ways to clear it, and only one of them is usually right:
+
+1. **Use a key inside an allowed family.** If the thing you are tagging is
+   already covered by semantic conventions (`http.`, `db.`, `messaging.`,
+   `server.`, `exception.` …), use the conventional key. Free, no release.
+2. **Declare it in the policy pack.** Domain vocabulary — outcomes, statuses,
+   the infrastructure a call addressed — is declared individually, never as a
+   family ([ADR-0025](../adr/0025-domain-attributes-are-declared-not-a-family.md)):
+
+   ```csharp
+   // src/Raksawi.Observability.Kyc/AssemblyInfo.cs
+   [assembly: AllowedAttributeKey("screening.outcome", DataClass.Infrastructure)]
+   ```
+
+   Pick the data class honestly. Class 2 is an opaque business identifier and
+   may never be a metric dimension (RKS002, an error, not a warning). Classes 3
+   and 4 appear nowhere in telemetry, and declaring one is ignored rather than
+   honoured — it is not a route to emitting it.
+
+What you should *not* do is suppress the diagnostic. It is not protecting a
+style rule; it is telling you the data will not arrive.
+
+Note this is a **package release**, not a file edit, and that is deliberate
+(ADR-0017): a vocabulary change goes through the same review as any other
+schema change. Also note the analyzer only sees literal keys — a key built at
+run time compiles clean and is still dropped at run time.
+
+Two more diagnostics exist: **RKS002** (Class 2 as a metric dimension — an
+error, because an unbounded dimension degrades the store for every service) and
+**RKS003** (exporter configured by hand, which bypasses the allowlist entirely).
 
 Structured logs only — `LogInformation("Screened {ApplicationId}", id)`,
 never string interpolation (`ADR-0004`, banned at build, scanned at

@@ -15,7 +15,7 @@ You are the last line for anything not source-controlled. Nothing reaches storag
 ## What you own
 
 - Collector deployment and config (`deploy/collector/`, `deploy/docker-compose.yaml` for demo shape — **not** the production shape, see below).
-- Collector-side redaction/allowlist enforcement matching the declared policy (see `contract.sh` in the verification table — proves collector policy and the declared allowlist express the *same* rules; not written yet, so today this is a manual check against `docs/allowlist.md`).
+- Collector-side redaction/allowlist enforcement matching the declared policy (`transform/allowlist` in `deploy/collector/config.yaml`, live since 2026-08-25). `contract.sh` fails if it and the code-side `AllowlistRules` drift, so the manual check against `docs/allowlist.md` is no longer the only thing standing between the two.
 - Free-text scanning at the collector — interpolated log strings are banned at build (ADR-0004) but the collector is the backstop for anything that slips through.
 - Agent-path governance: for .NET Framework services with no package reference, MSI auto-instrumentation + `Register-OpenTelemetryForIIS` + per-app-pool env vars is host config you run, and the collector is the *only* place their telemetry gets governed.
 - Estate inventory / coverage denominator: the service register is the coverage denominator ([ADR-0021](../adr/0021-service-register-is-the-coverage-denominator.md)) — reconciled against reality, not aspirational.
@@ -35,7 +35,9 @@ docker compose -f deploy/docker-compose.yaml up -d
 
 SigNoz's Foundry ingester already owns host port **4318**, so this repo's own collector is remapped to **4319** in `deploy/docker-compose.yaml` (host side only — the collector still listens on 4318 inside its container, and estate-wide production is still 4318). Point service `Otlp__Endpoint` at `http://localhost:4319` when running samples against this compose stack. See `samples/README.md` for the full worked sequence, including `Screening.Api`'s actual port (5206).
 
-🔒 This compose file is explicitly dummy-data-only: no allowlist enforcement exists yet against it (ADR-0022), and it ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — sampling is 1.0, there's no auth hardening, no fail-closed collector policy applied yet.
+🔒 This compose file is dummy-data-only and ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — sampling is 1.0 and there is no auth hardening (ADR-0022).
+
+The allowlist itself is *not* demo-scoped any more: `transform/allowlist` is applied in this config, fails closed (`error_mode: propagate`), and is the same policy production will run. What remains demo-shaped is everything around it — exporter target, storage sizing, credentials, sampling.
 
 ## Sampling and boot-failure behavior
 
@@ -55,11 +57,13 @@ Data classes 3 (restricted PII) and 4 (secrets) must appear **nowhere** — not 
 |---|---|---|
 | `check.sh` | build/format only, not infra | exists |
 | `test-fast.sh` | unit tests only | exists |
-| `test-full.sh` | above + `otelcol validate` on collector config | **not yet written** |
-| `contract.sh` | collector policy and declared allowlist express the same rules | **not yet written** |
+| `test-full.sh` | above + `otelcol validate` on collector config | exists |
+| `contract.sh` | collector policy and declared allowlist express the same rules | exists — the code/collector comparison passes; the `otelcol validate` step **fails** unless `otelcol` or a running docker daemon is available, by design rather than skipping |
 | `e2e.sh` | assertions against *received* telemetry, not configuration — required because Rev 3 Gate 3 needs redaction verified against stored data, not intent | **not yet written** |
 
-Until these exist, verifying collector config is manual: apply it, send a real span through the demo stack, inspect what actually lands in the store. Don't claim redaction or allowlist enforcement is "in place" from reading config alone — that's exactly the gap `e2e.sh` exists to close later.
+`contract.sh` compares text and `otelcol validate` parses the OTTL. Neither watches a span go through. Don't claim redaction or allowlist enforcement is "in place" from either — apply the config, send a real span through the demo stack, and inspect what actually lands in the store. That is the gap `e2e.sh` exists to close.
+
+🔒 Two known gaps, both open: the OTTL in `transform/allowlist` has **not** yet been through `otelcol validate` (it was written on a machine with neither `otelcol` nor a running docker daemon), and the allowlist filters span and datapoint attributes but **not resource attributes** — which an agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`.
 
 ## Manual verification checklist (today)
 

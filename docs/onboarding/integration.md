@@ -71,7 +71,7 @@ If your domain is KYC, also reference `Raksawi.Observability.Kyc`:
 activity?.SetApplicationId(applicationId);   // Class 2 — spans only, never a metric dimension by design
 ```
 
-Data classes 3 (restricted PII) and 4 (secrets) appear **nowhere** in telemetry — not spans, logs, or metrics. If you're about to tag something that looks like it might be class 3/4, stop and check [`docs/allowlist.md`](../allowlist.md) first; the analyzer will also catch unknown keys at build.
+Data classes 3 (restricted PII) and 4 (secrets) appear **nowhere** in telemetry — not spans, logs, or metrics. If you're about to tag something that looks like it might be class 3/4, stop and check [`docs/allowlist.md`](../allowlist.md) first. The analyzer catches unknown keys at build (RKS001) — see [the .NET 10 guide](./net10-api-integration.md#when-the-build-says-rks001) for what to do when it fires. Do not suppress it: it is telling you the tag reaches no store.
 
 ## Correlation — mint or continue it
 

@@ -222,7 +222,11 @@ In order — each step fails differently.
 - **Core NATS, not JetStream.** No redelivery: exhausting the retry loop loses
   the message. Correct for a demo, wrong for production — and JetStream changes
   the diagnostic picture, since redelivery duplicates spans
-- **No allowlist enforcement.** Dummy data only (ADR-0022)
+- **Allowlist enforcement is on**, at all three points: the analyzer runs over
+  these projects at build, `AllowlistProcessor` drops unallowlisted keys before
+  export, and `transform/allowlist` drops them again at the collector. Turning
+  the analyzer on here found eight keys this sample had been emitting and
+  silently losing ([ADR-0025](../docs/adr/0025-domain-attributes-are-declared-not-a-family.md))
 - **Sampling 1.0**, credentials in the compose file — demo settings
 - **The fault injection block is demo scaffolding.** Delete it before this
   shape goes anywhere real

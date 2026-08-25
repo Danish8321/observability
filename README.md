@@ -142,7 +142,7 @@ docs/phase3/                  store bake-off criteria, failure matrix
 
 Code exists and builds: `Raksawi.Observability`, `Raksawi.Observability.Kyc`,
 the `Screening` sample (API, domain, worker), and unit tests, all on
-`net48;net10.0` except the sample (`net10.0` only). Twenty-four ADRs, a
+`net48;net10.0` except the sample (`net10.0` only). Twenty-five ADRs, a
 glossary, and five Phase 0 worksheets whose data has **not** been collected —
 that data, not more code, is the current bottleneck.
 
