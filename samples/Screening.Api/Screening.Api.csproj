@@ -1,6 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <!-- The analyzer runs over this project rather than being referenced by it
+         (ADR-0002) — the same shape consumers get from the package with
+         PrivateAssets="all". The reference implementation is the first place
+         governance should be enforced, not the one place it is exempt. -->
+    <ProjectReference Include="..\..\src\Raksawi.Observability.Analyzers\Raksawi.Observability.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Raksawi.Observability\Raksawi.Observability.csproj" />
     <ProjectReference Include="..\Screening.Domain\Screening.Domain.csproj" />
   </ItemGroup>

@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- Analyzer, not a reference — see Screening.Api.csproj. -->
+    <ProjectReference Include="..\..\src\Raksawi.Observability.Analyzers\Raksawi.Observability.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\Raksawi.Observability.Kyc\Raksawi.Observability.Kyc.csproj" />
   </ItemGroup>
 

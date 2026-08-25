@@ -15,6 +15,38 @@ public class AttributeAllowlistTests
         AttributeAllowlist.ForDeclaredKeys("correlation.id", "application.id");
 
     [Theory]
+    [InlineData("application.id")]
+    [InlineData("screening.outcome")]
+    [InlineData("screening.abandon_reason")]
+    [InlineData("couchdb.database")]
+    public void Keys_declared_by_the_policy_pack_survive_the_real_scan(string key)
+    {
+        // Not ForDeclaredKeys: this drives the reflective path, so the keys
+        // under test are the ones Raksawi.Observability.Kyc actually declares.
+        // A key removed from that pack fails here rather than going quiet in
+        // production.
+        Assert.True(AttributeAllowlist.FromLoadedAssemblies().IsAllowed(key, isCouchDbSpan: false));
+    }
+
+    [Fact]
+    public void Scan_reaches_a_referenced_pack_without_its_types_being_used()
+    {
+        // The load-order trap this guards: AddRaksawiObservability runs early
+        // in Program.cs, before any policy-pack type is touched, so a scan of
+        // only-loaded assemblies would miss the pack entirely.
+        //
+        // Honest limit: this test process has already loaded the pack, so what
+        // is pinned here is that the reference walk includes it, not that a
+        // cold process behaves the same. The cold case belongs to e2e.sh.
+        var referenced = typeof(AttributeAllowlist).Assembly
+            .GetReferencedAssemblies()
+            .Select(name => name.Name);
+
+        Assert.DoesNotContain("Raksawi.Observability.Kyc", referenced);
+        Assert.True(AttributeAllowlist.FromLoadedAssemblies().IsAllowed("screening.abandoned", isCouchDbSpan: false));
+    }
+
+    [Theory]
     [InlineData("http.request.method")]
     [InlineData("http.response.status_code")]
     [InlineData("server.address")]

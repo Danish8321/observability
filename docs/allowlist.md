@@ -123,6 +123,39 @@ ADR-0017.
 🔒 No Class 2 key may be a metric dimension. Rev 3 **D2.1** rule 1, enforced by
 the analyzer.
 
+## Class 0 and 1 — declared by policy packs
+
+A domain says more than identifiers. Outcomes, statuses, and the infrastructure
+a call addressed are not covered by any semantic-convention family, so they are
+declared the same way Class 2 keys are — individually, in the pack, matched
+exactly and never by prefix.
+
+Allowing a `screening.` family by prefix was considered and rejected: a family
+allow would let any future key under that prefix through all three enforcement
+points without review, which is the default-deny this document exists to
+describe. The cost is a package release per key, which ADR-0017 treats as a
+feature.
+
+| Key | Class | Pack | Meaning |
+|---|---|---|---|
+| `screening.outcome` | 0 | Kyc | Result of a screening decision |
+| `screening.provider` | 0 | Kyc | Which provider answered |
+| `screening.abandoned` | 0 | Kyc | Work will not complete — the signal that separates "never submitted" from "submitted and silently never finished" |
+| `screening.abandon_reason` | 0 | Kyc | Closed set of reasons |
+| `application.found` | 0 | Kyc | Lookup outcome. Not an identifier — see below |
+| `application.status` | 0 | Kyc | Closed set of statuses |
+| `couchdb.database` | 1 | Kyc | Which database was addressed |
+| `couchdb.conflict` | 1 | Kyc | Whether a write lost a revision race |
+
+Note `application.found` and `application.status` share a prefix with the
+Class 2 `application.id` and are not identifiers. That is precisely why declared
+keys match exactly (ADR-0018): a prefix rule here would either leak the
+identifier or drop the outcomes.
+
+All eight were found by running the analyzer over the Screening reference
+service on 2026-08-25. Every one had been emitted since before any allowlist
+existed, and every one was being dropped before export.
+
 ## What is still missing
 
 The empirical half of ADR-0018. Until the Phase 1 fixture runs and dumps every

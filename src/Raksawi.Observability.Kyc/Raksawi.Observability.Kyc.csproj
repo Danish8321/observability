@@ -8,6 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The analyzer runs over the policy pack too. A pack that declares the
+         vocabulary is not exempt from it. -->
+    <ProjectReference Include="..\Raksawi.Observability.Analyzers\Raksawi.Observability.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Policy depends on mechanism, never the reverse (ADR-0001). The
          dependency became load-bearing with ADR-0017's allowlist declarations:
          DataClass and AllowedAttributeKeyAttribute are estate vocabulary and
