@@ -33,6 +33,36 @@ internal static class AllowlistRules
     ];
 
     /// <summary>
+    /// Families allowed on a <b>resource</b>, which is a deliberately narrower
+    /// set than <see cref="AllowedFamilies"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A resource describes who is emitting, not what happened, so nothing in
+    /// <c>http.</c>, <c>db.</c>, <c>messaging.</c>, <c>url.</c> or
+    /// <c>exception.</c> belongs on one. Allowing the span families here would
+    /// let a service move a request-scoped value onto the resource and out of
+    /// reach of the span rules — the same key, unfiltered, on every signal it
+    /// emits.
+    /// </para>
+    /// <para>
+    /// 🔒 This exists because an agent-instrumented service builds its own
+    /// resource from <c>OTEL_RESOURCE_ATTRIBUTES</c> (ADR-0009). Our own
+    /// services get their resource from <c>ServiceIdentity</c> and are already
+    /// constrained; those services are not the threat this table addresses.
+    /// </para>
+    /// </remarks>
+    internal static readonly string[] AllowedResourceFamilies =
+    [
+        // Identity and provenance. Rev 3 Appendix B, ADR-0006, ADR-0008.
+        "service.", "deployment.", "vcs.", "cicd.",
+
+        // Where it ran. Emitted by every SDK and by the 4.8 agent.
+        "telemetry.sdk.", "telemetry.distro.", "process.", "host.", "os.",
+        "container.", "k8s.",
+    ];
+
+    /// <summary>
     /// 🔒 Carve-outs denied by prefix within allowed families. This table and
     /// the next are the compliance argument — a family allow is broad by
     /// intent, and these are what make it safe. Reviewed as security-critical,
@@ -69,6 +99,24 @@ internal static class AllowlistRules
     internal static readonly string[] CouchDbOnlyKeys = ["url.full", "url.query"];
 
     /// <summary>
+    /// 🔒 Carve-outs within the allowed <b>resource</b> families. Every one of
+    /// these is emitted by default by at least one SDK or by the 4.8 agent, so
+    /// each is a live leak rather than a hypothetical one.
+    /// </summary>
+    internal static readonly string[] DeniedResourceKeys =
+    [
+        // Connection strings and credentials are passed as arguments often
+        // enough that a command line is Class 3 by default. Both the singular
+        // and the array-valued form.
+        "process.command_line",
+        "process.command_args",
+
+        // The machine account a service runs as. Rev 3 treats an operator
+        // identity as personal data, and it is not a diagnostic input.
+        "process.owner",
+    ];
+
+    /// <summary>
     /// Class 2 keys that must never appear as a metric dimension (Rev 3 D2.1
     /// rule 1), regardless of being allowlisted for spans and logs.
     /// </summary>
@@ -77,6 +125,32 @@ internal static class AllowlistRules
         "application.id", "correlation.id", "session.id", "causation.id",
         "message.id", "tenant.id",
     ];
+
+    /// <summary>
+    /// Verdict for a resource attribute key. Resources carry no declared
+    /// Class 2 keys, so unlike <see cref="IsAllowedByFamily"/> there is nothing
+    /// to consult before this.
+    /// </summary>
+    internal static bool IsAllowedResourceKey(string key)
+    {
+        foreach (var denied in DeniedResourceKeys)
+        {
+            if (string.Equals(key, denied, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        foreach (var family in AllowedResourceFamilies)
+        {
+            if (key.StartsWith(family, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Verdict for a key that no policy pack declared. Declared Class 2 keys

@@ -71,6 +71,54 @@ public sealed class CollectorAllowlistContractTests
         Assert.Contains("keep_matching_keys", statements[^1]);
     }
 
+    [Theory]
+    [MemberData(nameof(AllowedResourceFamilies))]
+    public void Every_allowed_resource_family_appears_in_the_collector_resource_keep(string family)
+    {
+        Assert.Contains(Escaped(family), ResourceKeep());
+    }
+
+    [Theory]
+    [MemberData(nameof(DeniedResourceKeys))]
+    public void Every_resource_carve_out_appears_in_the_collector_resource_deny(string key)
+    {
+        var deletes = string.Join('\n', ResourceLines("delete_matching_keys"));
+
+        // Spelled as one alternation rather than three literals, so compare on
+        // the leaf rather than the whole key.
+        Assert.Contains(key[(key.LastIndexOf('.') + 1)..], deletes);
+        Assert.Contains(Escaped("process."), deletes);
+    }
+
+    [Theory]
+    [InlineData("http.")]
+    [InlineData("db.")]
+    [InlineData("messaging.")]
+    [InlineData("url.")]
+    [InlineData("exception.")]
+    public void A_span_family_is_not_allowed_on_a_resource(string spanOnlyFamily)
+    {
+        // 🔒 The resource set is narrower on purpose (ADR-0026). If a span
+        // family appears here, a service can move a request-scoped value onto
+        // the resource and escape the span rules entirely.
+        Assert.DoesNotContain(Escaped(spanOnlyFamily), ResourceKeep());
+        Assert.False(AllowlistRules.IsAllowedResourceKey(spanOnlyFamily + "anything"));
+    }
+
+    [Fact]
+    public void Both_pipelines_state_the_same_resource_rule()
+    {
+        // The transform processor scopes statements per signal, so the resource
+        // rule is written twice. Twice is where drift lives.
+        var keeps = ResourceLines("keep_matching_keys").Select(line => line.Trim()).ToArray();
+        var deletes = ResourceLines("delete_matching_keys").Select(line => line.Trim()).ToArray();
+
+        Assert.Equal(2, keeps.Length);
+        Assert.Equal(2, deletes.Length);
+        Assert.Equal(keeps[0], keeps[1]);
+        Assert.Equal(deletes[0], deletes[1]);
+    }
+
     [Fact]
     public void Collector_fails_closed_on_an_erroring_statement()
     {
@@ -84,6 +132,10 @@ public sealed class CollectorAllowlistContractTests
         Load([.. AllowlistRules.DeniedPrefixes, .. AllowlistRules.DeniedKeys]);
 
     public static TheoryData<string> NeverAMetricDimension() => Load(AllowlistRules.NeverAMetricDimension);
+
+    public static TheoryData<string> AllowedResourceFamilies() => Load(AllowlistRules.AllowedResourceFamilies);
+
+    public static TheoryData<string> DeniedResourceKeys() => Load(AllowlistRules.DeniedResourceKeys);
 
     private static TheoryData<string> Load(string[] values)
     {
@@ -100,7 +152,13 @@ public sealed class CollectorAllowlistContractTests
     /// <summary>The key as it is spelled inside an OTTL regex: dots escaped.</summary>
     private static string Escaped(string key) => key.Replace(".", "\\\\.", StringComparison.Ordinal);
 
-    private static string KeepExpression() => string.Join('\n', Lines("keep_matching_keys"));
+    private static string KeepExpression() =>
+        string.Join('\n', Lines("keep_matching_keys").Where(line => !line.Contains("resource.attributes", StringComparison.Ordinal)));
+
+    private static string ResourceKeep() => string.Join('\n', ResourceLines("keep_matching_keys"));
+
+    private static IEnumerable<string> ResourceLines(string containing) =>
+        Lines(containing).Where(line => line.Contains("resource.attributes", StringComparison.Ordinal));
 
     private static IEnumerable<string> Lines(string containing) =>
         Config.Split('\n').Where(line => line.Contains(containing, StringComparison.Ordinal));

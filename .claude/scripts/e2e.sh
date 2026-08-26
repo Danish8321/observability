@@ -159,6 +159,15 @@ absent db.statement
 # attribute actually takes.
 absent applicantIdentifier
 
+# 🔒 Resource attributes (ADR-0026). An agent-instrumented service builds its
+# resource from OTEL_RESOURCE_ATTRIBUTES, so the collector is the only place
+# this is constrained at all — which is why it is asserted on both signals.
+present service.name
+present host.name
+absent process.command_line
+absent operatorEmail
+absent metricOperatorEmail
+
 # 🔒 Metric dimensions: Class 2 is permitted on the span above and refused
 # here. Same key, opposite verdict, which is the rule stated as a test.
 if grep -q '"reason"' "$received"; then

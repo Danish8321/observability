@@ -1,7 +1,10 @@
 {
   "resourceSpans": [{
     "resource": { "attributes": [
-      { "key": "service.name", "value": { "stringValue": "e2e-probe" } }
+      { "key": "service.name", "value": { "stringValue": "e2e-probe" } },
+      { "key": "host.name", "value": { "stringValue": "probe-host" } },
+      { "key": "process.command_line", "value": { "stringValue": "app.exe --password hunter2" } },
+      { "key": "operatorEmail", "value": { "stringValue": "someone@example.test" } }
     ]},
     "scopeSpans": [{
       "spans": [

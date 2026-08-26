@@ -77,6 +77,40 @@ telemetry; an unpinned one would let it change underneath us.
 | `user_agent.*` | 0 | |
 | Class 2 keys | 2 | Declared by policy packs, never by prefix |
 
+## Allowed families — on a resource
+
+Narrower on purpose ([ADR-0026](./adr/0026-resource-attributes-are-allowlisted-narrowly.md)).
+A resource says who is emitting, not what happened, so nothing request-scoped
+belongs on one.
+
+| Family | Class | Notes |
+|---|---|---|
+| `service.*`, `deployment.*`, `vcs.*`, `cicd.*` | 1 | Identity and provenance |
+| `telemetry.sdk.*`, `telemetry.distro.*` | 0 | What produced the telemetry |
+| `process.*`, `host.*`, `os.*`, `container.*`, `k8s.*` | 0 | Where it ran — subject to the carve-outs below |
+
+🔒 **Absent deliberately:** `http.*`, `url.*`, `db.*`, `messaging.*`,
+`server.*`, `client.*`, `network.*`, `code.*`, `exception.*`, `user_agent.*`.
+Allowing a span family here would let a service move a request-scoped value
+onto its resource and out of reach of the span rules — the same key,
+unfiltered, on every signal it emits for the life of the process. A test
+asserts each of these is absent from the resource keep.
+
+No Class 2 key is declarable on a resource. Those are request- or
+workflow-scoped by definition; a resource is process-scoped.
+
+| Resource carve-out | Class | Reason |
+|---|---|---|
+| `process.command_line` | 3 | Connection strings and credentials are passed as arguments often enough that a command line is Class 3 by default |
+| `process.command_args` | 3 | Array-valued form of the above |
+| `process.owner` | 2 | Machine account. An operator identity, and not a diagnostic input |
+
+This is enforced at the **collector only** — the one enforcement point that
+reaches an agent-instrumented service, which builds its resource from
+`OTEL_RESOURCE_ATTRIBUTES` and is the case this exists for. Our own services
+get their resource from `ServiceIdentity` and cannot set an arbitrary key
+through `AddRaksawiObservability()`.
+
 ## 🔒 Carve-outs — denied within allowed families
 
 This table is the compliance argument. A family allow is broad by intent; these
@@ -173,6 +207,8 @@ packages Rev 3 **N-D1** notes ship as prerelease.
 Reconciliation at Gate 2:
 
 - [ ] Dump every attribute key emitted by the fixture on both runtimes
+- [ ] Dump what a 4.8 agent actually puts on a **resource**; reconcile against
+      the resource families. ADR-0026 settles that set; it does not validate it
 - [ ] Reconcile against the families above; classify anything unaccounted for
 - [ ] Enumerate the `messaging.*` keys actually used, individually
 - [ ] Set the pinned semconv version in code

@@ -110,7 +110,7 @@ docker, rather than skipping.
 | `test-fast.sh` | Unit tests, no collector/store/network | working |
 | `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
 | `contract.sh` | Collector policy and the declared allowlist express the same rules | working — comparison passes and `otelcol validate` accepts the OTTL (2026-08-25). Still **fails** on a machine with neither `otelcol` nor a running docker daemon, by design |
-| `e2e.sh` | Assertions against *received* telemetry, not configuration | working — nine assertions pass against telemetry that came out of the collector (2026-08-25). **Fails** without a running docker daemon, by design |
+| `e2e.sh` | Assertions against *received* telemetry, not configuration | working — fourteen assertions pass against telemetry that came out of the collector (2026-08-26). **Fails** without a running docker daemon, by design |
 
 `contract.sh` and `e2e.sh` exit 1 with an explanation rather than passing
 vacuously or being omitted when their prerequisites are absent.
@@ -179,16 +179,22 @@ agent-instrumented 4.8 services. `contract.sh` fails if it and
 `AllowlistRules.cs` drift.
 
 All three enforcement points now exist, and the OTTL was accepted by
-`otelcol validate` on 2026-08-25. One caveat remains open: the collector filters
-span and datapoint attributes but **not resource attributes**, which an
-agent-instrumented service supplies itself via `OTEL_RESOURCE_ATTRIBUTES`.
+`otelcol validate` on 2026-08-25. On 2026-08-26 the collector also began
+allowlisting **resource** attributes, on a deliberately narrower family set
+than spans get
+([ADR-0026](./docs/adr/0026-resource-attributes-are-allowlisted-narrowly.md)) —
+that was the last open caveat, and it mattered because an agent-instrumented
+service builds its resource from `OTEL_RESOURCE_ATTRIBUTES` and a leak there is
+attached to every signal the process emits, not to one span.
 
 Validation is not verification. `otelcol validate` proves the OTTL parses and
 the processors construct; it does not watch a single attribute get dropped.
 That is `e2e.sh`'s job, and as of 2026-08-25 it does it: `Authorization`,
 `db.statement`, a hand-rolled `applicantIdentifier`, and `url.full` on a
 non-CouchDB span were each observed absent from received telemetry, with
-`url.full` on the CouchDB span in the same payload observed present.
+`url.full` on the CouchDB span in the same payload observed present. Fourteen
+assertions as of 2026-08-26, five of them on resource attributes across both
+pipelines.
 Both packages are strong-named as of 2026-08-25, so ADR-0017's provenance
 check on allowlist declarations is real at both enforcement points rather than
 passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until

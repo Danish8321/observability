@@ -1,7 +1,8 @@
 {
   "resourceMetrics": [{
     "resource": { "attributes": [
-      { "key": "service.name", "value": { "stringValue": "e2e-probe" } }
+      { "key": "service.name", "value": { "stringValue": "e2e-probe" } },
+      { "key": "metricOperatorEmail", "value": { "stringValue": "someone@example.test" } }
     ]},
     "scopeMetrics": [{
       "metrics": [{

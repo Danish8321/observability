@@ -38,14 +38,20 @@ processors:
   transform/allowlist:
     error_mode: propagate
 
-    # Known gap: this filters span and datapoint attributes, not RESOURCE
-    # attributes. Resource is built by ServiceIdentity.cs in-process for our own
-    # services, but an agent-instrumented service supplies its own via
-    # OTEL_RESOURCE_ATTRIBUTES, and nothing here constrains it. Recorded rather
-    # than papered over; closing it needs the resource families settled at
-    # Gate 2.
-
     trace_statements:
+      # 🔒 Resource first. An agent-instrumented service builds its resource
+      # from OTEL_RESOURCE_ATTRIBUTES, so nothing in-process constrains it and
+      # this is the only place it is constrained at all (ADR-0009, ADR-0026).
+      # The resource families are NARROWER than the span families deliberately:
+      # a resource says who is emitting, not what happened, so allowing http.
+      # or db. here would let a request-scoped value be moved onto the resource
+      # and out of reach of the span rules — same key, unfiltered, on every
+      # signal the service emits.
+      - context: resource
+        statements:
+          - delete_matching_keys(resource.attributes, "^process\\.(command_line|command_args|owner)$")
+          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)")
+
       - context: span
         statements:
           # Carve-outs first: these live inside otherwise-allowed families, so
@@ -67,6 +73,14 @@ processors:
           - keep_matching_keys(span.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
 
     metric_statements:
+      # Same resource rule as the traces pipeline. Stated twice because the
+      # transform processor scopes statements per signal, not because the rule
+      # differs; CollectorAllowlistContractTests fails if the two copies drift.
+      - context: resource
+        statements:
+          - delete_matching_keys(resource.attributes, "^process\\.(command_line|command_args|owner)$")
+          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)")
+
       - context: datapoint
         statements:
           # 🔒 Rev 3 D2.1 rule 1. Class 2 is permitted on spans and refused as a

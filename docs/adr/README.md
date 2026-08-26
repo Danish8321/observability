@@ -32,6 +32,7 @@ silently.
 | [0023](./0023-couchdb-changes-the-database-surface.md) | CouchDB moves database risk from statement text to the URL | Accepted — corrects 0003, 0004, 0018 |
 | [0024](./0024-estate-inventory-by-working-position-not-sweep.md) | D0.3's five-source sweep is unattainable; working positions stand in its place | Accepted — deviates from Rev 3 |
 | [0025](./0025-domain-attributes-are-declared-not-a-family.md) | Domain attributes are declared individually, not allowed as a family | Accepted — extends 0018 |
+| [0026](./0026-resource-attributes-are-allowlisted-narrowly.md) | Resource attributes are allowlisted, on a narrower family set than spans | Accepted — extends 0018, closes an 0009 gap |
 
 ## Deviations from Rev 3
 
@@ -55,7 +56,8 @@ are the places this repository knowingly differs, each argued in its own ADR:
 ## Grouping
 
 **Package shape** — 0001, 0011, 0012, 0017
-**Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025
+**Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
+0026
 **Telemetry schema** — 0006, 0007, 0008
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
