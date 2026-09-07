@@ -23,3 +23,6 @@ service:
     metrics:
       receivers: [otlp]
       exporters: [file]
+    logs:
+      receivers: [otlp]
+      exporters: [file]

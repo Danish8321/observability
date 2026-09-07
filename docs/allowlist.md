@@ -77,6 +77,30 @@ telemetry; an unpinned one would let it change underneath us.
 | `user_agent.*` | 0 | |
 | Class 2 keys | 2 | Declared by policy packs, never by prefix |
 
+## Allowed families — on a log record
+
+The span list above, unchanged: Rev 3 **D2.1** permits Class 2 on spans *and*
+logs, so a narrower log list would contradict the policy it implements.
+Enforced in-process by `LogAllowlistProcessor` on .NET 10 and by the collector's
+`log_statements` on both runtimes
+([ADR-0028](./adr/0028-logs-are-enforced-in-process-on-net10-only.md)).
+
+Two differences, both tightenings:
+
+- 🔒 **The conditional `url.full`/`url.query` pair is unconditional here** —
+  denied outright. Those keys survive on a CouchDB span only because
+  `CouchDbUrlPolicy` rewrote the document identifier first, and nothing rewrites
+  a URL a service wrote into a log. No precondition, no exemption.
+- **A structured log property is an attribute key.** `LogInformation("Screened
+  {ApplicationId}", id)` emits an attribute named `ApplicationId`, which matches
+  no family and no declaration and is dropped. Log properties must be named in
+  the estate vocabulary — `{application.id}` — or they do not survive export.
+  The dropped-key metric carries a `telemetry.signal` dimension so this is
+  visible rather than mysterious.
+
+The log **body** is not filtered by key and cannot be; that is ADR-0004's
+interpolation ban and the collector's pattern scan, not this list.
+
 ## Allowed families — on a resource
 
 Narrower on purpose ([ADR-0026](./adr/0026-resource-attributes-are-allowlisted-narrowly.md)).
@@ -213,3 +237,6 @@ Reconciliation at Gate 2:
 - [ ] Enumerate the `messaging.*` keys actually used, individually
 - [ ] Set the pinned semconv version in code
 - [ ] Confirm the dropped-key metric fires for a deliberately unlisted key
+- [ ] Dump every attribute key emitted on a **log record** by the fixture, and
+      reconcile the property names services actually write against the families
+      above — the naming gap ADR-0028 records is a guess at scale until then

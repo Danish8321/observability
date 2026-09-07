@@ -37,8 +37,10 @@ public sealed class CollectorAllowlistContractTests
     [Fact]
     public void Conditional_pair_is_deleted_on_a_span_with_no_known_host()
     {
-        var conditional = Lines("delete_matching_keys").Where(line => line.Contains("url\\\\.(full|query)")
-            || line.Contains("url\\.(full|query)")).ToArray();
+        var conditional = Section("trace_statements", "metric_statements").Split('\n')
+            .Where(line => line.Contains("delete_matching_keys", StringComparison.Ordinal)
+                && line.Contains("url", StringComparison.Ordinal))
+            .ToArray();
 
         // One statement for the absent-host case and one for the wrong-host
         // case. Both must exist: a single statement testing IsMatch against a
@@ -53,22 +55,67 @@ public sealed class CollectorAllowlistContractTests
     [MemberData(nameof(NeverAMetricDimension))]
     public void Every_unbounded_dimension_is_deleted_from_metric_datapoints(string key)
     {
-        var metricSection = Config[Config.IndexOf("metric_statements", StringComparison.Ordinal)..];
-
-        Assert.Contains(Escaped(key), metricSection);
+        Assert.Contains(Escaped(key), Section("metric_statements", "log_statements"));
     }
 
     [Fact]
     public void Keep_is_the_last_span_statement_so_anything_unnamed_is_gone_by_default()
     {
-        var spanSection = Config[
-            Config.IndexOf("trace_statements", StringComparison.Ordinal)..Config.IndexOf("metric_statements", StringComparison.Ordinal)];
+        Assert.Contains("keep_matching_keys", LastStatementIn("trace_statements", "metric_statements"));
+    }
 
-        var statements = spanSection.Split('\n')
-            .Where(line => line.TrimStart().StartsWith("- ", StringComparison.Ordinal))
+    [Theory]
+    [MemberData(nameof(AllowedFamilies))]
+    public void Every_allowed_family_appears_in_the_collector_log_keep(string family)
+    {
+        // 🔒 Class 2 is permitted on spans and logs (Rev 3 D2.1), so the log
+        // keep is the span keep rather than a narrower copy of it. A family
+        // present on one and missing from the other is drift either way.
+        Assert.Contains(Escaped(family), LogKeep());
+    }
+
+    [Theory]
+    [MemberData(nameof(CarveOuts))]
+    public void Every_carve_out_appears_in_the_collector_log_deny(string carveOut)
+    {
+        var deletes = string.Join('\n', LogLines("delete_matching_keys"));
+
+        Assert.Contains(Escaped(carveOut), deletes);
+    }
+
+    [Fact]
+    public void The_conditional_pair_is_unconditional_on_a_log_record()
+    {
+        // url.full survives on a span to a known CouchDB host because
+        // CouchDbUrlPolicy replaced the document identifier first. Nothing
+        // redacts a URL on a log record, so the exemption has no precondition
+        // and the pair is deleted outright — one statement, no host test.
+        var conditional = LogLines("delete_matching_keys")
+            .Where(line => line.Contains("url", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Contains("keep_matching_keys", statements[^1]);
+        Assert.Single(conditional);
+        Assert.DoesNotContain("where", conditional[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Keep_is_the_last_log_statement_so_anything_unnamed_is_gone_by_default()
+    {
+        Assert.Contains("keep_matching_keys", LastStatementIn("log_statements", "  resource:"));
+    }
+
+    [Fact]
+    public void Every_signal_is_filtered_before_it_reaches_the_exporter()
+    {
+        // A signal with no pipeline is not exported at all, which is loud. A
+        // pipeline that skips transform/allowlist is silent, and is the one
+        // this catches.
+        foreach (var signal in new[] { "traces", "metrics", "logs" })
+        {
+            var pipeline = Section("    " + signal + ":", "exporters: [otlp/signoz]");
+
+            Assert.Contains("transform/allowlist", pipeline);
+        }
     }
 
     [Theory]
@@ -113,10 +160,11 @@ public sealed class CollectorAllowlistContractTests
         var keeps = ResourceLines("keep_matching_keys").Select(line => line.Trim()).ToArray();
         var deletes = ResourceLines("delete_matching_keys").Select(line => line.Trim()).ToArray();
 
-        Assert.Equal(2, keeps.Length);
-        Assert.Equal(2, deletes.Length);
-        Assert.Equal(keeps[0], keeps[1]);
-        Assert.Equal(deletes[0], deletes[1]);
+        // Three copies now: traces, metrics and logs.
+        Assert.Equal(3, keeps.Length);
+        Assert.Equal(3, deletes.Length);
+        Assert.Single(keeps.Distinct());
+        Assert.Single(deletes.Distinct());
     }
 
     [Fact]
@@ -156,6 +204,28 @@ public sealed class CollectorAllowlistContractTests
         string.Join('\n', Lines("keep_matching_keys").Where(line => !line.Contains("resource.attributes", StringComparison.Ordinal)));
 
     private static string ResourceKeep() => string.Join('\n', ResourceLines("keep_matching_keys"));
+
+    private static string LogKeep() => string.Join('\n', LogLines("keep_matching_keys"));
+
+    /// <summary>Lines of the log pipeline only, resource statements excluded.</summary>
+    private static IEnumerable<string> LogLines(string containing) =>
+        Section("log_statements", "  resource:").Split('\n')
+            .Where(line => line.Contains(containing, StringComparison.Ordinal)
+                && !line.Contains("resource.attributes", StringComparison.Ordinal));
+
+    /// <summary>The configuration between two markers, exclusive of the second.</summary>
+    private static string Section(string from, string to)
+    {
+        var start = Config.IndexOf(from, StringComparison.Ordinal);
+        var end = Config.IndexOf(to, start, StringComparison.Ordinal);
+
+        return end < 0 ? Config[start..] : Config[start..end];
+    }
+
+    private static string LastStatementIn(string from, string to) =>
+        Section(from, to).Split('\n')
+            .Where(line => line.TrimStart().StartsWith("- ", StringComparison.Ordinal))
+            .ToArray()[^1];
 
     private static IEnumerable<string> ResourceLines(string containing) =>
         Lines(containing).Where(line => line.Contains("resource.attributes", StringComparison.Ordinal));

@@ -48,9 +48,14 @@ builder.AddRaksawiObservability(o =>
 });
 ```
 
-Traces and metrics, resource attributes, redaction, sampler enforcement and
-exporter safety all follow. **Logs do not** — nothing wires an OTLP log
-exporter yet, and the collector is the only log control today.
+Traces, metrics and logs, resource attributes, redaction, sampler enforcement
+and exporter safety all follow. Logs joined that list on 2026-09-07 and are
+filtered by the same allowlist as spans — **on .NET 10 only**; on 4.8 the
+collector remains the sole log control
+([ADR-0028](./docs/adr/0028-logs-are-enforced-in-process-on-net10-only.md)).
+One thing to know before writing a log line: a structured property **is** an
+attribute key, so `{ApplicationId}` is dropped and `{application.id}` is
+kept.
 
 None of those lines is decorative, and each one omitted fails silently: an
 unregistered `ActivitySource` emits no spans, an unregistered `Meter` is
@@ -82,9 +87,11 @@ knows what a business domain may say. A non-KYC service takes mechanism alone.
 
 **Three enforcement points, default deny at each.** The analyzer at build, the
 library before export, the collector before storage. A process containing none of
-our code has only the third, and gets it fail-closed.
+our code has only the third, and gets it fail-closed. Log records get two of the
+three on .NET 10 — there is no analyzer rule for a log property — and one on 4.8.
 [ADR-0003](./docs/adr/0003-runtime-allowlist-at-source.md),
-[ADR-0009](./docs/adr/0009-governing-agent-instrumented-services.md).
+[ADR-0009](./docs/adr/0009-governing-agent-instrumented-services.md),
+[ADR-0028](./docs/adr/0028-logs-are-enforced-in-process-on-net10-only.md).
 
 **One source for what may be said.** The allowlist is declared as assembly
 attributes in policy packs and read by both the analyzer and the runtime. There
@@ -131,7 +138,7 @@ docker, rather than skipping.
 | `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
 | `contract.sh` | Collector policy and the declared allowlist express the same rules | working — comparison passes and `otelcol validate` accepts the OTTL (2026-08-25). Still **fails** on a machine with neither `otelcol` nor a running docker daemon, by design |
 | `e2e.sh` | Assertions against *received* telemetry, not configuration | working — fourteen assertions pass against telemetry that came out of the collector (2026-08-26). **Fails** without a running docker daemon, by design |
-| `e2e-instrumented.sh` | The same, on telemetry emitted by the reference services actually running | working — fifteen assertions pass against telemetry that left `screening-api` and `screening-worker` and survived the collector (2026-09-07). **Fails** without a running docker daemon, by design |
+| `e2e-instrumented.sh` | The same, on telemetry emitted by the reference services actually running | working — eighteen assertions pass against telemetry that left `screening-api` and `screening-worker` and survived the collector (2026-09-07). **Fails** without a running docker daemon, by design |
 
 `contract.sh`, `e2e.sh` and `e2e-instrumented.sh` exit 1 with an explanation
 rather than passing vacuously or being omitted when their prerequisites are
@@ -236,6 +243,14 @@ Synthetic payloads verify the collector and stop there. Since 2026-09-07
 `http://couchdb:5984/kyc/{docid}` reached the sink and the document identifier
 did not (ADR-0023). That verification covers .NET 10 only; the 4.8 path has
 the same code and no fixture yet.
+
+The log signal was wired the same day, with `LogAllowlistProcessor` filtering
+log attributes exactly as `AllowlistProcessor` filters span attributes
+(ADR-0028). `e2e-instrumented.sh` asserts both halves of one real log record
+from `screening-worker`: the declared `application.id` survives, and `Outcome`
+— named the conventional .NET way, matching no family and no declaration — does
+not. That drop is the adoption cost of the design, and it is the reason the
+dropped-key metric now carries a `telemetry.signal` dimension.
 Both packages are strong-named as of 2026-08-25, so ADR-0017's provenance
 check on allowlist declarations is real at both enforcement points rather than
 passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until

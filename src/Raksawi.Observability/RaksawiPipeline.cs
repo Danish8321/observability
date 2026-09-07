@@ -1,5 +1,6 @@
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -76,8 +77,32 @@ internal static class RaksawiPipeline
         ResourceBuilder resource) =>
         builder
             .SetResourceBuilder(resource)
-            .AddMeter(AllowlistProcessor.MeterName)
+            .AddMeter(AllowlistDropMetric.MeterName)
             .AddMeter(options.Meters.ToArray());
+
+    /// <summary>
+    /// Resource and the log allowlist processor, then the exporter.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 One method rather than the identity/export pair the other two signals
+    /// get, because there is no runtime-specific log instrumentation to slot
+    /// between them — the ordering constraint that split those has nothing to
+    /// protect here.
+    /// <para>
+    /// A log record carries structured properties, and until ADR-0028 the
+    /// collector was the only thing filtering them. That made ADR-0003's middle
+    /// enforcement point a claim that held for spans and not for logs, while
+    /// <c>DataClass</c> said Class 2 was "permitted on spans and logs".
+    /// </para>
+    /// </remarks>
+    internal static LoggerProviderBuilder AddRaksawiLogging(
+        this LoggerProviderBuilder builder,
+        RaksawiObservabilityOptions options,
+        ResourceBuilder resource) =>
+        builder
+            .SetResourceBuilder(resource)
+            .AddProcessor(new LogAllowlistProcessor(AttributeAllowlist.FromLoadedAssemblies()))
+            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/logs"));
 
     /// <summary>The metric exporter. There is no allowlist processor for metrics.</summary>
     internal static MeterProviderBuilder AddRaksawiExport(

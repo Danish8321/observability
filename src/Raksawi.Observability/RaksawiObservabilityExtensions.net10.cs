@@ -71,7 +71,12 @@ public static class RaksawiObservabilityExtensions
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                .AddRaksawiExport(options));
+                .AddRaksawiExport(options))
+            // 🔒 Logs go through the same allowlist as spans (ADR-0028).
+            // Structured properties are span attributes by another name, and
+            // before this they reached the collector unfiltered while ADR-0003
+            // claimed an in-process control for every signal.
+            .WithLogging(logging => logging.AddRaksawiLogging(options, resource));
 
         return builder;
     }

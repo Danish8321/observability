@@ -118,12 +118,25 @@ Recording expected outcomes as errors trains people to ignore errors.
 ### Structured logs, never interpolated
 
 ```csharp
-logger.LogInformation("Screened {ApplicationId}", id);     // queryable
+logger.LogInformation("Screened {application.id}", id);    // queryable, and kept
+logger.LogInformation("Screened {ApplicationId}", id);     // queryable, and dropped
 logger.LogInformation($"Screened {id}");                   // banned (ADR-0004)
 ```
 
 An interpolated string is one opaque line — unqueryable, unscannable, and
 impossible to redact after the fact.
+
+🔒 The middle line is the one that surprises people. A structured log property
+**is** an attribute key, and since ADR-0028 log attributes go through the same
+allowlist as span attributes: `ApplicationId` matches no family and no
+declaration, so it is dropped before export and the log line arrives without
+it. Name log properties in the estate vocabulary, exactly as you would name a
+span attribute. `ScreeningService` writes one line carrying both a declared key
+and an undeclared one on purpose, and `e2e-instrumented.sh` asserts that one
+survives and the other does not.
+
+The message **body** is not filtered by key and cannot be, which is what makes
+the interpolation ban above load-bearing rather than stylistic.
 
 ### CouchDB is HTTP, and that is the whole risk
 

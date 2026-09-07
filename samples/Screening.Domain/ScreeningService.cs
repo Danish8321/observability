@@ -116,8 +116,17 @@ public sealed class ScreeningService(
         // Structured properties. The application identifier is a property
         // rather than part of the message text, so it stays queryable and stays
         // subject to the same governance as a span attribute.
+        //
+        // 🔒 And the property is named application.id, not ApplicationId,
+        // because "the same governance" is now literal: a log property IS an
+        // attribute key, and the allowlist matches the declared key exactly
+        // (ADR-0028). A PascalCase property matches no family and no
+        // declaration, so it is dropped before export — silently, which is
+        // exactly what the allowlist is for. Outcome below is left undeclared
+        // on purpose: it is dropped, and e2e-instrumented.sh asserts on both
+        // halves of this one log line.
         logger.LogInformation(
-            "Screened {ApplicationId} with outcome {Outcome}",
+            "Screened {application.id} with outcome {Outcome}",
             message.ApplicationId,
             outcome);
 

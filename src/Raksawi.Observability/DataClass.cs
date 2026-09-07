@@ -25,6 +25,12 @@ public enum DataClass
     /// Opaque business identifiers: application, tenant, correlation. Permitted
     /// on spans and logs, and <b>never</b> as a metric dimension.
     /// </summary>
+    /// <remarks>
+    /// "And logs" is literal: a structured log property is an attribute key, so
+    /// it must be named as one — <c>{application.id}</c>, not
+    /// <c>{ApplicationId}</c>, which matches nothing and is dropped before
+    /// export (ADR-0028).
+    /// </remarks>
     OpaqueBusinessIdentifier = 2,
 
     /// <summary>🔒 Restricted personal data. CPR, MRZ, names, addresses. Never emitted.</summary>

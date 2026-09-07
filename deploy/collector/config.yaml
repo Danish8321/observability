@@ -92,6 +92,32 @@ processors:
           - delete_matching_keys(datapoint.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
           - delete_matching_keys(datapoint.attributes, "^(db\\.query\\.text|db\\.statement|url\\.full|url\\.query)$")
 
+    log_statements:
+      # Same resource rule again, for the same reason as the metrics copy:
+      # the transform processor scopes statements per signal.
+      - context: resource
+        statements:
+          - delete_matching_keys(resource.attributes, "^process\\.(command_line|command_args|owner)$")
+          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)")
+
+      - context: log
+        statements:
+          # Carve-outs first, exactly as on spans: these live inside otherwise
+          # allowed families, so the keep below would let them through.
+          - delete_matching_keys(log.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
+          - delete_matching_keys(log.attributes, "^(db\\.query\\.text|db\\.statement)$")
+
+          # 🔒 No CouchDB conditional here, deliberately. url.full survives on a
+          # span because CouchDbUrlPolicy already replaced the document
+          # identifier; nothing does that for a log record, so the pair is
+          # denied outright rather than conditionally. Same rule, one fewer
+          # exemption, because the precondition for the exemption is absent.
+          - delete_matching_keys(log.attributes, "^url\\.(full|query)$")
+
+          # Default deny, the same families and declared Class 2 keys the span
+          # keep uses — Class 2 is permitted on spans AND logs (Rev 3 D2.1).
+          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
+
   resource:
     attributes:
       - key: deployment.environment.name
@@ -127,6 +153,10 @@ service:
       processors: [memory_limiter, transform/allowlist, resource, batch]
       exporters: [otlp/signoz]
     metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/allowlist, resource, batch]
+      exporters: [otlp/signoz]
+    logs:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]
       exporters: [otlp/signoz]

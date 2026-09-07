@@ -202,10 +202,11 @@ echo "== waiting for telemetry to reach the sink =="
 # sleep, then takes one more pass so a late metric batch is included.
 i=0
 dump_received
-while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null; do
+while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
+    || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 120 ]; then
-        echo "e2e-instrumented.sh: the worker own metric never arrived." >&2
+        echo "e2e-instrumented.sh: the worker metric or log never arrived." >&2
         echo "--- api ---" >&2; docker logs "$API" >&2 || true
         echo "--- worker ---" >&2; docker logs "$WORKER" >&2 || true
         echo "--- collector ---" >&2; docker logs "$SUT" >&2 || true
@@ -279,6 +280,32 @@ if grep 'screening.applications.screened' "$received" | grep -q '"application.id
     failed=1
 else
     echo "  ok      absent  application.id as a metric dimension"
+fi
+
+# 🔒 Logs (ADR-0028). The worker writes one line with two structured
+# properties: application.id, which is a declared Class 2 key, and Outcome,
+# which is named the way .NET templates are usually named and matches no
+# family and no declaration. One survives and one does not, from the same
+# record, which is the whole rule in one assertion pair.
+present 'Screened {application.id}' 'the worker log record'
+
+# Scoped to the export request carrying that record, the way the metric
+# dimension check above is scoped: application.id is legitimately present on a
+# span, so a whole-file grep would prove nothing about the log.
+logline=$(grep 'Screened {application.id}' "$received")
+
+if echo "$logline" | grep -q '"application.id"'; then
+    echo "  ok      present a declared Class 2 key on a log"
+else
+    echo "  FAILED  missing a declared Class 2 key on a log" >&2
+    failed=1
+fi
+
+if echo "$logline" | grep -q '"Outcome"'; then
+    echo "  FAILED  LEAKED  an undeclared log property" >&2
+    failed=1
+else
+    echo "  ok      absent  an undeclared log property"
 fi
 
 # Carve-outs, on real HTTP spans this time. CouchDB is reached with a Basic

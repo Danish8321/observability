@@ -34,6 +34,7 @@ silently.
 | [0025](./0025-domain-attributes-are-declared-not-a-family.md) | Domain attributes are declared individually, not allowed as a family | Accepted — extends 0018 |
 | [0026](./0026-resource-attributes-are-allowlisted-narrowly.md) | Resource attributes are allowlisted, on a narrower family set than spans | Accepted — extends 0018, closes an 0009 gap |
 | [0027](./0027-d02-baseline-has-no-data-source.md) | D0.2's Run 0 has no data source — no baseline to take, ever | Accepted — deviates from Rev 3 |
+| [0028](./0028-logs-are-enforced-in-process-on-net10-only.md) | Logs allowlisted in-process on .NET 10, at the collector only on 4.8 | Accepted — completes 0003 for logs, deviates from Rev 3 on 4.8 |
 
 ## Deviations from Rev 3
 
@@ -56,12 +57,16 @@ are the places this repository knowingly differs, each argued in its own ADR:
 - **0027** — **D0.2**'s Run 0 passive baseline is unattainable, not merely
   blocked pending access — all four of its data sources are confirmed
   unreachable.
+- **0028** — log records get two enforcement points on .NET 10 and one on 4.8,
+  where **I3.2** asks for source-side filtering everywhere. A logger provider on
+  4.8 would mean assuming `Microsoft.Extensions.Logging` in services that may not
+  use it; the collector stands alone there until Phase 2.
 
 ## Grouping
 
 **Package shape** — 0001, 0011, 0012, 0017
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
-0026
+0026, 0028
 **Telemetry schema** — 0006, 0007, 0008
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022

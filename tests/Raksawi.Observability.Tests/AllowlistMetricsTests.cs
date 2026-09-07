@@ -52,7 +52,7 @@ public class AllowlistMetricsTests : IDisposable
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
-            if (instrument.Meter.Name == AllowlistProcessor.MeterName)
+            if (instrument.Meter.Name == AllowlistDropMetric.MeterName)
             {
                 l.EnableMeasurementEvents(instrument);
             }
@@ -68,9 +68,16 @@ public class AllowlistMetricsTests : IDisposable
 
         DropOneKey(CreateProcessor(), "applicantCpr");
 
-        var tag = Assert.Single(recorded);
-        Assert.Equal("attribute.key", tag.Key);
-        Assert.Equal("applicantCpr", tag.Value);
+        Assert.Contains(
+            recorded,
+            tag => tag.Key == "attribute.key" && (string?)tag.Value == "applicantCpr");
+
+        // 🔒 One counter across spans and logs, told apart by a dimension
+        // bounded at two values forever. Two counters would make "is anything
+        // being dropped" two questions.
+        Assert.Contains(
+            recorded,
+            tag => tag.Key == "telemetry.signal" && (string?)tag.Value == AllowlistDropMetric.SpanSignal);
     }
 
     /// <summary>
@@ -87,7 +94,7 @@ public class AllowlistMetricsTests : IDisposable
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
-            if (instrument.Meter.Name == AllowlistProcessor.MeterName)
+            if (instrument.Meter.Name == AllowlistDropMetric.MeterName)
             {
                 l.EnableMeasurementEvents(instrument);
             }
@@ -102,7 +109,7 @@ public class AllowlistMetricsTests : IDisposable
         listener.Start();
 
         var processor = CreateProcessor();
-        var distinctKeys = AllowlistProcessor.MaxDistinctDroppedKeys * 10;
+        var distinctKeys = AllowlistDropMetric.MaxDistinctDroppedKeys * 10;
 
         // A prefix unique to this test: the meter is process-wide and static, so
         // a listener here also sees drops from tests running in parallel.
@@ -118,9 +125,9 @@ public class AllowlistMetricsTests : IDisposable
         // Bounded by the cap, not by how many distinct keys the service
         // invented, and everything past the cap lands in one bucket.
         Assert.True(
-            mine.Count <= AllowlistProcessor.MaxDistinctDroppedKeys,
+            mine.Count <= AllowlistDropMetric.MaxDistinctDroppedKeys,
             $"{mine.Count} distinct dimension values from {distinctKeys} distinct keys");
-        Assert.Contains(AllowlistProcessor.OverflowDimension, values);
+        Assert.Contains(AllowlistDropMetric.OverflowDimension, values);
     }
 
     [Fact]
@@ -129,7 +136,7 @@ public class AllowlistMetricsTests : IDisposable
         var exporter = new CollectingExporter();
 
         using var provider = Sdk.CreateMeterProviderBuilder()
-            .AddMeter(AllowlistProcessor.MeterName)
+            .AddMeter(AllowlistDropMetric.MeterName)
             .AddReader(new BaseExportingMetricReader(exporter))
             .Build();
 
