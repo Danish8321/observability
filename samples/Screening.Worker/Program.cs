@@ -17,6 +17,10 @@ builder.AddRaksawiObservability(o =>
     o.OtlpEndpoint = new Uri(builder.Configuration["Otlp:Endpoint"] ?? "http://localhost:4318");
     o.SamplingRatio = 1.0;
     o.ActivitySources.Add(ScreeningTelemetry.ActivitySourceName);
+
+    // The worker owns screening.duration and the abandonment counter — the two
+    // instruments the runbook reads. Unregistered, they reach no store.
+    o.Meters.Add(ScreeningTelemetry.MeterName);
     o.CouchDbHosts.Add(new Uri(couchDbUrl).Host);
 });
 

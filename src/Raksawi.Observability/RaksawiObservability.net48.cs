@@ -1,6 +1,5 @@
 #if NETFRAMEWORK
 using OpenTelemetry;
-using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -27,7 +26,13 @@ public static class RaksawiObservability
     /// Starts telemetry. Never throws for telemetry reasons: a service must be
     /// able to start without a collector (Rev 3 I3.6).
     /// </summary>
-    public static IDisposable Start(Action<RaksawiObservabilityOptions> configure)
+    /// <returns>
+    /// The handle to hold for the application lifetime and dispose in
+    /// <c>Application_End</c>. Read
+    /// <see cref="RaksawiObservabilityHandle.W3CWarning"/> from it — a non-null
+    /// value there is the one 4.8 failure that is otherwise silent.
+    /// </returns>
+    public static RaksawiObservabilityHandle Start(Action<RaksawiObservabilityOptions> configure)
     {
         if (configure == null)
         {
@@ -46,69 +51,87 @@ public static class RaksawiObservability
         var resource = ServiceIdentity.BuildResource(options);
 
         var tracer = Sdk.CreateTracerProviderBuilder()
-            .SetResourceBuilder(resource)
-            .SetSampler(new ParentBasedSampler(
-                new TraceIdRatioBasedSampler(options.EffectiveSamplingRatio)))
-            .AddSource(RaksawiObservabilityOptions.NatsActivitySourceName)
-            .AddSource(options.ActivitySources.ToArray())
+            .AddRaksawiIdentity(options, resource)
+            // Between identity and export: everything here is specific to this
+            // runtime. The .NET 10 entry point registers its own equivalents in
+            // the same position.
             .AddAspNetInstrumentation()
-            .AddHttpClientInstrumentation()
-            // Last thing before the exporter, deliberately: it must see every
-            // attribute anything else set, including third-party
-            // instrumentation the analyzer cannot see at all (ADR-0003).
-            .AddProcessor(new AllowlistProcessor(
-                AttributeAllowlist.FromLoadedAssemblies(),
-                options.CouchDbHosts.ToArray()))
-            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/traces"))
+            .AddHttpClientInstrumentation(http =>
+            {
+                // 🔒 The same two CouchDB rules the .NET 10 path applies,
+                // reached through this runtime's hooks: HttpClient on .NET
+                // Framework is instrumented at HttpWebRequest, so the
+                // HttpRequestMessage callbacks never fire here. Wiring nothing
+                // left document identifiers in url.full on 4.8 while the
+                // allowlist's conditional carve-out went on admitting the key.
+                http.FilterHttpWebRequest = request =>
+                    RaksawiPipeline.ShouldTrace(request?.RequestUri);
+
+                http.EnrichWithHttpWebRequest = (activity, request) =>
+                {
+                    if (RaksawiPipeline.TryRedactCouchDbUrl(options, request?.RequestUri, out var redacted))
+                    {
+                        activity.SetTag("url.full", redacted);
+                    }
+                };
+            })
+            .AddRaksawiExport(options)
             .Build();
 
         var meter = Sdk.CreateMeterProviderBuilder()
-            .SetResourceBuilder(resource)
+            .AddRaksawiIdentity(options, resource)
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
-            .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/metrics"))
+            .AddRaksawiExport(options)
             .Build();
 
-        return new Handle(tracer, meter, w3cWarning);
+        return new RaksawiObservabilityHandle(tracer, meter, w3cWarning);
     }
 
-    private static void ConfigureOtlp(OtlpExporterOptions otlp, RaksawiObservabilityOptions options, string signalPath)
+}
+
+/// <summary>
+/// The live telemetry providers on .NET Framework 4.8. Held for the
+/// application lifetime and disposed in <c>Application_End</c>.
+/// </summary>
+/// <remarks>
+/// Public, and not just an <see cref="IDisposable"/>, because
+/// <see cref="W3CWarning"/> has to be readable. It was previously a property on
+/// a private nested class returned as <see cref="IDisposable"/>, so no caller
+/// could reach the diagnostic for the failure this runtime is most likely to
+/// hit.
+/// </remarks>
+public sealed class RaksawiObservabilityHandle : IDisposable
+{
+    private readonly TracerProvider _tracer;
+    private readonly MeterProvider _meter;
+
+    internal RaksawiObservabilityHandle(TracerProvider tracer, MeterProvider meter, string? w3cWarning)
     {
-        // gRPC is not supported on .NET Framework. This is not a preference.
-        //
-        // The SDK only auto-appends the per-signal path (v1/traces,
-        // v1/metrics) when Endpoint comes from its own default or from
-        // OTEL_EXPORTER_OTLP_ENDPOINT. Setting Endpoint programmatically, as
-        // this always does, opts out of that — so the path is appended here
-        // explicitly, or every export 404s against the bare endpoint.
-        otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
-        otlp.Endpoint = new Uri(options.OtlpEndpoint, signalPath);
+        _tracer = tracer;
+        _meter = meter;
+        W3CWarning = w3cWarning;
     }
 
-    private sealed class Handle : IDisposable
+    /// <summary>
+    /// Non-null when the trace context format had to be corrected at startup.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Surfaced rather than logged: there is no logging abstraction to assume
+    /// on this runtime. Write it wherever the application already writes
+    /// startup diagnostics. On .NET Framework the default id format is
+    /// <c>Hierarchical</c> and the failure is silent — a trace splits in two
+    /// rather than erroring — so this is the only signal that it happened, and
+    /// if it appears after an <c>Activity</c> already exists, traces have
+    /// already split.
+    /// </remarks>
+    public string? W3CWarning { get; }
+
+    /// <summary>Shuts the providers down, flushing what is pending.</summary>
+    public void Dispose()
     {
-        private readonly TracerProvider _tracer;
-        private readonly MeterProvider _meter;
-
-        public Handle(TracerProvider tracer, MeterProvider meter, string? w3cWarning)
-        {
-            _tracer = tracer;
-            _meter = meter;
-            W3CWarning = w3cWarning;
-        }
-
-        /// <summary>
-        /// Non-null when the trace context format had to be corrected. Surfaced
-        /// rather than logged, because there is no logging abstraction to
-        /// assume on this runtime.
-        /// </summary>
-        public string? W3CWarning { get; }
-
-        public void Dispose()
-        {
-            _tracer.Dispose();
-            _meter.Dispose();
-        }
+        _tracer.Dispose();
+        _meter.Dispose();
     }
 }
 #endif

@@ -1,8 +1,6 @@
 #if NET10_0_OR_GREATER
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -35,10 +33,13 @@ public static class RaksawiObservabilityExtensions
         configure(options);
         options.Validate();
 
-        var w3cWarning = ServiceIdentity.EnsureW3CTraceContext();
-        if (w3cWarning is not null)
+        // No logger exists yet — the host is not built — so the warning is
+        // handed to a hosted service that writes it once at start. It was
+        // previously used to raise a log filter and then discarded, which
+        // logged nothing and changed the level for unrelated categories.
+        if (ServiceIdentity.EnsureW3CTraceContext() is not null)
         {
-            builder.Logging.AddFilter("Raksawi.Observability", LogLevel.Warning);
+            builder.Services.AddHostedService<W3CTraceContextWarning>();
         }
 
         var resource = ServiceIdentity.BuildResource(options);
@@ -46,59 +47,33 @@ public static class RaksawiObservabilityExtensions
         builder.Services
             .AddOpenTelemetry()
             .WithTracing(tracing => tracing
-                .SetResourceBuilder(resource)
-                .SetSampler(new ParentBasedSampler(
-                    new TraceIdRatioBasedSampler(options.EffectiveSamplingRatio)))
-                .AddSource(RaksawiObservabilityOptions.NatsActivitySourceName)
-                .AddSource(options.ActivitySources.ToArray())
+                .AddRaksawiIdentity(options, resource)
+                // Between identity and export: everything here is specific to
+                // this runtime. The 4.8 entry point registers its own
+                // equivalents in the same position.
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation(http =>
                 {
                     http.FilterHttpRequestMessage = request =>
-                        request.RequestUri is null || !CouchDbUrlPolicy.IsChangesFeed(request.RequestUri);
+                        RaksawiPipeline.ShouldTrace(request.RequestUri);
 
                     http.EnrichWithHttpRequestMessage = (activity, request) =>
                     {
-                        if (!options.RedactCouchDbUrls || request.RequestUri is null)
+                        if (RaksawiPipeline.TryRedactCouchDbUrl(options, request.RequestUri, out var redacted))
                         {
-                            return;
-                        }
-
-                        if (options.CouchDbHosts.Contains(request.RequestUri.Host))
-                        {
-                            activity.SetTag("url.full", CouchDbUrlPolicy.Redact(request.RequestUri));
+                            activity.SetTag("url.full", redacted);
                         }
                     };
                 })
-                // Last thing before the exporter, deliberately: it must see
-                // every attribute anything else set, including third-party
-                // instrumentation the analyzer cannot see at all (ADR-0003).
-                .AddProcessor(new AllowlistProcessor(
-                    AttributeAllowlist.FromLoadedAssemblies(),
-                    options.CouchDbHosts.ToArray()))
-                .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/traces")))
+                .AddRaksawiExport(options))
             .WithMetrics(metrics => metrics
-                .SetResourceBuilder(resource)
+                .AddRaksawiIdentity(options, resource)
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/metrics")));
+                .AddRaksawiExport(options));
 
         return builder;
-    }
-
-    private static void ConfigureOtlp(OtlpExporterOptions otlp, RaksawiObservabilityOptions options, string signalPath)
-    {
-        // http/protobuf, not gRPC: 4317 is closed estate-wide and gRPC is
-        // unsupported on the .NET Framework target this package also serves.
-        //
-        // The SDK only auto-appends the per-signal path (v1/traces,
-        // v1/metrics) when Endpoint comes from its own default or from
-        // OTEL_EXPORTER_OTLP_ENDPOINT. Setting Endpoint programmatically, as
-        // this always does, opts out of that — so the path is appended here
-        // explicitly, or every export 404s against the bare endpoint.
-        otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
-        otlp.Endpoint = new Uri(options.OtlpEndpoint, signalPath);
     }
 }
 #endif

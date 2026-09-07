@@ -36,11 +36,11 @@ Boot fails fast (not silently) if `ServiceName`/`ServiceNamespace` are missing, 
 Package reference plus three touchpoints the library cannot reach from inside:
 
 1. `Activity.DefaultIdFormat`/`ForceDefaultIdFormat` forced to W3C as the **first statements** of `Application_Start` — default on 4.8 is Hierarchical and the failure is silent (a trace splits in two, no error). `RaksawiObservability.Start()` does this for you, but only if called early enough.
-2. The returned `IDisposable` held for the application lifetime, disposed in `Application_End`.
+2. The returned `RaksawiObservabilityHandle` (an `IDisposable`) held for the application lifetime, disposed in `Application_End`.
 3. `TelemetryHttpModule` registered in `Web.config`, IIS in integrated pipeline mode.
 
 ```csharp
-private static IDisposable _observability;
+private static RaksawiObservabilityHandle _observability;
 
 protected void Application_Start()
 {
@@ -55,7 +55,7 @@ protected void Application_Start()
 protected void Application_End() => _observability?.Dispose();
 ```
 
-Check `Handle.W3CWarning` (surfaced, not logged — no logging abstraction assumed on this runtime) after `Start()` if you need to confirm the correction happened before the first `Activity`.
+Read `_observability.W3CWarning` after `Start()` — non-null means the format had to be corrected. Surfaced, not logged, because no logging abstraction is assumed on this runtime, so write it wherever the application already writes startup diagnostics. If it appears after an `Activity` already exists, traces have already split.
 
 **Unvalidated until Phase 2** ([ADR-0005](../adr/0005-enforcing-the-framework-wiring.md), deferred by [ADR-0022](../adr/0022-demo-first-resequencing.md)) — the three documented 4.8 failure modes aren't yet reproduced against a fixture. Treat this path as provisional until that lands.
 

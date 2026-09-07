@@ -67,6 +67,14 @@ public sealed class RaksawiObservabilityOptions
     public IList<string> ActivitySources { get; } = new List<string>();
 
     /// <summary>
+    /// Meter names belonging to the application itself. A meter that is not
+    /// registered is collected by nothing and exports nothing, silently — the
+    /// metrics counterpart of an unregistered <see cref="ActivitySources"/>
+    /// entry. The library registers its own meter without help.
+    /// </summary>
+    public IList<string> Meters { get; } = new List<string>();
+
+    /// <summary>
     /// NATS.Net emits publish and subscribe spans and propagates trace context
     /// through message headers on its own, from version 3.0.1. Nothing injects
     /// traceparent by hand, and no custom message counters are needed.

@@ -27,12 +27,18 @@ internal static class ServiceIdentity
         Activity.DefaultIdFormat = ActivityIdFormat.W3C;
         Activity.ForceDefaultIdFormat = true;
 
-        return wasHierarchical
-            ? "Activity.DefaultIdFormat was not W3C and has been corrected. On " +
-              ".NET Framework this is expected at startup; if it appears after " +
-              "an Activity has already been created, traces have already split."
-            : null;
+        return wasHierarchical ? W3CCorrectedMessage : null;
     }
+
+    /// <summary>
+    /// The correction warning, as a constant rather than an interpolated
+    /// string: ADR-0004 bans interpolated log messages, and both runtimes have
+    /// to report the same text for the same condition.
+    /// </summary>
+    internal const string W3CCorrectedMessage =
+        "Activity.DefaultIdFormat was not W3C and has been corrected. On " +
+        ".NET Framework this is expected at startup; if it appears after " +
+        "an Activity has already been created, traces have already split.";
 
     public static ResourceBuilder BuildResource(RaksawiObservabilityOptions options)
     {

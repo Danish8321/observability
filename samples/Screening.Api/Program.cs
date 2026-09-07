@@ -23,6 +23,10 @@ builder.AddRaksawiObservability(o =>
     // Without this the service's own spans are dropped silently.
     o.ActivitySources.Add(ScreeningTelemetry.ActivitySourceName);
 
+    // And without this its own metrics are collected by nothing — the same
+    // mistake, one signal over, and just as silent.
+    o.Meters.Add(ScreeningTelemetry.MeterName);
+
     // Without this, CouchDB document identifiers reach the store in url.full.
     // It is an exact host match and it fails open (ADR-0023).
     o.CouchDbHosts.Add(new Uri(couchDbUrl).Host);

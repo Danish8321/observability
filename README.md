@@ -33,21 +33,41 @@ Artifacts. This repository contains no service code.
 
 ## What integration looks like
 
-**.NET 10** — one package reference, one line:
+**.NET 10** — one package reference, one call:
 
 ```csharp
-builder.AddRaksawiObservability();
+builder.AddRaksawiObservability(o =>
+{
+    o.ServiceName = "screening-api";      // bare, kebab-case (ADR-0006)
+    o.ServiceNamespace = "kyc";
+    o.OtlpEndpoint = new Uri(builder.Configuration["Otlp:Endpoint"]!);
+    o.SamplingRatio = 0.1;                // required outside Development (ADR-0010)
+    o.ActivitySources.Add(MyTelemetry.ActivitySourceName);
+    o.Meters.Add(MyTelemetry.MeterName);
+    o.CouchDbHosts.Add(couchDbHost);      // only if this service talks to CouchDB
+});
 ```
 
-Set `OTEL_SERVICE_NAME` and `DEPLOYMENT_ENVIRONMENT`. Traces, metrics, logs,
-resource attributes, redaction, sampler defaults, and exporter safety all follow.
-The service names no database, no endpoint, and no sampling rate.
+Traces and metrics, resource attributes, redaction, sampler enforcement and
+exporter safety all follow. **Logs do not** — nothing wires an OTLP log
+exporter yet, and the collector is the only log control today.
+
+None of those lines is decorative, and each one omitted fails silently: an
+unregistered `ActivitySource` emits no spans, an unregistered `Meter` is
+collected by nothing, a missing `CouchDbHosts` entry means document
+identifiers reach the store unredacted. The exception is `SamplingRatio`,
+which is a boot failure outside Development rather than a silent one, because
+a silently wrong sampling rate is not detectable from the data (ADR-0010).
+
+`docs/onboarding/net10-api-integration.md` is the step-by-step version.
 
 **.NET Framework 4.8, SDK path** — a package reference plus three touchpoints the
 library cannot reach from inside: W3C forcing as the first statements of
-`Application_Start`, the returned `IDisposable` held for the application lifetime
-and disposed in `Application_End`, and the telemetry module registered in
-`Web.config`.
+`Application_Start`, the returned `RaksawiObservabilityHandle` held for the
+application lifetime and disposed in `Application_End`, and the telemetry module
+registered in `Web.config`. Read `W3CWarning` off that handle — non-null means
+the trace-context format had to be corrected, which is the one 4.8 failure that
+is otherwise silent.
 
 **.NET Framework 4.8, agent path** — no package at all. The auto-instrumentation
 MSI on the host, `Register-OpenTelemetryForIIS`, and environment variables per
