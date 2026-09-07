@@ -1,12 +1,16 @@
 # D0.2 — Performance baseline
 
-**Status:** not started
+**Status:** Run 0 unattainable — not "not yet taken," there is no baseline to
+take, ever, per [ADR-0027](../adr/0027-d02-baseline-has-no-data-source.md).
+Runs 1/2 not started; unaffected by Run 0's blockage but lose their
+Run-0 cross-check.
 **Method fixed by:** [ADR-0014](../adr/0014-performance-baseline-method.md)
-**Priority:** first among *measurements*. This is the only measurement in the
-programme that expires.
+**Priority:** first among *measurements*. This was meant to be the only
+measurement in the programme that expires — that framing no longer applies to
+Run 0, which cannot be taken at any point, early or late.
 **Ordering:** [D0.3](./estate-inventory.md) runs before this. Confirmed
-2026-08-10 that no throughput figures exist, so Run 0 supplies them — and Run 0
-cannot pick its three services without the register.
+2026-08-10 that no throughput figures exist, so Run 0 was meant to supply
+them — and Run 0 cannot pick its three services without the register.
 
 ---
 
@@ -57,12 +61,17 @@ deferred is instrumentation, not observation.
 Three runs. **Run 0 first**, then Runs 1 and 2, which are re-run identically at
 **D3.3**.
 
-### Run 0 — passive production observation
+### Run 0 — passive production observation (unattainable, see ADR-0027)
 
-Confirmed 2026-08-10: **no per-service throughput figures exist.** Run 0 is
-therefore not a sanity check on the synthetic load — it is where the rate comes
-from, and it is also a genuine uninstrumented baseline under real traffic rather
-than under a script's idea of traffic.
+Confirmed 2026-08-10: **no per-service throughput figures exist.** Run 0 was
+meant to supply the rate — not as a sanity check on synthetic load, but as the
+source of it — and to be a genuine uninstrumented baseline under real traffic
+rather than under a script's idea of traffic.
+
+Confirmed 2026-08-30 ([ADR-0027](../adr/0027-d02-baseline-has-no-data-source.md)):
+all four sources below are unreachable. Run 0 does not run. Runs 1/2's rate
+has to be set from estate belief instead, with no way to confirm it against
+reality.
 
 **Window: one full business week, agreed in advance.** Fixed beforehand or it
 becomes "whenever we looked," and the peak day is an estate fact nobody currently

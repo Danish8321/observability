@@ -33,6 +33,7 @@ silently.
 | [0024](./0024-estate-inventory-by-working-position-not-sweep.md) | D0.3's five-source sweep is unattainable; working positions stand in its place | Accepted — deviates from Rev 3 |
 | [0025](./0025-domain-attributes-are-declared-not-a-family.md) | Domain attributes are declared individually, not allowed as a family | Accepted — extends 0018 |
 | [0026](./0026-resource-attributes-are-allowlisted-narrowly.md) | Resource attributes are allowlisted, on a narrower family set than spans | Accepted — extends 0018, closes an 0009 gap |
+| [0027](./0027-d02-baseline-has-no-data-source.md) | D0.2's Run 0 has no data source — no baseline to take, ever | Accepted — deviates from Rev 3 |
 
 ## Deviations from Rev 3
 
@@ -52,6 +53,9 @@ are the places this repository knowingly differs, each argued in its own ADR:
   free text, and processes containing none of our code.
 - **0024** — **D0.3**'s five-source estate inventory is replaced by recorded
   working positions, because none of the five sources are reachable at all.
+- **0027** — **D0.2**'s Run 0 passive baseline is unattainable, not merely
+  blocked pending access — all four of its data sources are confirmed
+  unreachable.
 
 ## Grouping
 
@@ -61,7 +65,7 @@ are the places this repository knowingly differs, each argued in its own ADR:
 **Telemetry schema** — 0006, 0007, 0008
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
-**Estate facts** — 0023, 0024
+**Estate facts** — 0023, 0024, 0027
 
 ## Deferred by ADR-0022 until after the demo
 
