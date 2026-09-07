@@ -1,6 +1,6 @@
 # Onboarding: infra / platform
 
-For whoever runs the collector, backend store, and estate-wide instrumentation config. Not for service integration ([`integration.md`](./integration.md)) or library development ([`developer.md`](./developer.md)).
+For whoever runs the collector, backend store, and estate-wide instrumentation config. Not for service integration ([`integrating-a-service.md`](./integrating-a-service.md)) or library development ([`developer.md`](./developer.md)).
 
 ## Mental model first
 

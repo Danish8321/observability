@@ -1,6 +1,6 @@
 # Onboarding: developing in this repo
 
-For anyone working *on* `Raksawi.Observability`/`Raksawi.Observability.Kyc` themselves, or the samples/collector config in this repo. If you're consuming the package in a service, see [`integration.md`](./integration.md) instead.
+For anyone working *on* `Raksawi.Observability`/`Raksawi.Observability.Kyc` themselves, or the samples/collector config in this repo. If you're consuming the package in a service, see [`integrating-a-service.md`](./integrating-a-service.md) instead.
 
 ## First, read
 
@@ -9,7 +9,7 @@ For anyone working *on* `Raksawi.Observability`/`Raksawi.Observability.Kyc` them
 3. `docs/adr/README.md` — index of every decision; skim the table before assuming something is undecided
 4. Root `CLAUDE.md` — architecture map, commands, conventions (this file duplicates none of it — read it)
 
-**Authority rule**: Rev 3 (the observability implementation plan) owns policy/sequencing. This repo owns execution. Where they disagree, Rev 3 wins unless an ADR states the deviation explicitly — four exist, listed in `docs/adr/README.md#deviations-from-rev-3`. Never resolve a conflict silently in code; write or update an ADR.
+**Authority rule**: Rev 3 (the observability implementation plan) owns policy/sequencing. This repo owns execution. Where they disagree, Rev 3 wins unless an ADR states the deviation explicitly — seven exist, listed in `docs/adr/README.md#deviations-from-rev-3`. Never resolve a conflict silently in code; write or update an ADR.
 
 ## Setup
 
@@ -32,7 +32,7 @@ For running samples end to end (collector, NATS, CouchDB, SigNoz), see `samples/
 
 Single test: `dotnet test --filter "FullyQualifiedName~ClassName.MethodName"`.
 
-`test-full.sh`, `contract.sh`, `e2e.sh` are named in `README.md`'s verification table but not written yet — don't claim their evidence until they exist. Never say "done"/"works"/"fixed" without one of these scripts backing it.
+`test-full.sh` adds `otelcol validate`; `contract.sh` compares collector policy against the declared allowlist; `e2e.sh` asserts on telemetry received from the collector; `e2e-instrumented.sh` runs both reference services as containers and asserts on what they actually emitted. The last three need a running docker daemon and fail rather than skip without one. Never say "done"/"works"/"fixed" without one of these scripts backing it.
 
 `Directory.Build.props` sets `TreatWarningsAsErrors` + `EnforceCodeStyleInBuild` — any warning fails the build, on both targets. Expect `net48` to occasionally break in ways `net10.0` doesn't; that's the point (ADR-0012) — it's the cheapest test of a constraint that's expensive to retrofit.
 

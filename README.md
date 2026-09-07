@@ -64,7 +64,8 @@ identifiers reach the store unredacted. The exception is `SamplingRatio`,
 which is a boot failure outside Development rather than a silent one, because
 a silently wrong sampling rate is not detectable from the data (ADR-0010).
 
-`docs/onboarding/net10-api-integration.md` is the step-by-step version.
+`docs/onboarding/integrating-a-service.md` is the step-by-step version,
+zero to verified, for all three runtime paths.
 
 **.NET Framework 4.8, SDK path** — a package reference plus three touchpoints the
 library cannot reach from inside: W3C forcing as the first statements of
