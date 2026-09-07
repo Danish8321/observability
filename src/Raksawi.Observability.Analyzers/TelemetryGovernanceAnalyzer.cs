@@ -31,6 +31,14 @@ public sealed class TelemetryGovernanceAnalyzer : DiagnosticAnalyzer
     private const string ActivityTypeName = "System.Diagnostics.Activity";
     private const string MetricsNamespace = "System.Diagnostics.Metrics";
 
+    /// <summary>
+    /// Namespace prefix an exporter method must be declared in for RKS003 to
+    /// fire. The SDK spreads these across OpenTelemetry.Trace,
+    /// OpenTelemetry.Metrics and OpenTelemetry.Logs, so the prefix is the right
+    /// granularity rather than an exact type name.
+    /// </summary>
+    private const string ExporterNamespacePrefix = "OpenTelemetry";
+
     /// <summary>Method names that assemble an exporter pipeline by hand (RKS003).</summary>
     private static readonly ImmutableHashSet<string> ExporterMethods = ImmutableHashSet.Create(
         "AddOtlpExporter", "AddConsoleExporter", "AddInMemoryExporter");
@@ -73,7 +81,7 @@ public sealed class TelemetryGovernanceAnalyzer : DiagnosticAnalyzer
     {
         var method = invocation.TargetMethod;
 
-        if (ExporterMethods.Contains(method.Name))
+        if (ExporterMethods.Contains(method.Name) && IsExporterExtension(method))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 Diagnostics.ExporterConfiguredDirectly,
@@ -180,6 +188,25 @@ public sealed class TelemetryGovernanceAnalyzer : DiagnosticAnalyzer
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Whether an invocation named like an exporter call actually is one.
+    /// </summary>
+    /// <remarks>
+    /// Matching on the method name alone reported any consumer method that
+    /// happened to share it — a service's own wrapper extension, a test helper.
+    /// A false positive on a governance rule teaches people to suppress
+    /// governance rules, which is why RKS001 is literal-only and why this is
+    /// gated the same way the Activity and metric checks already are.
+    /// </remarks>
+    private static bool IsExporterExtension(IMethodSymbol method)
+    {
+        var containing = method.ContainingNamespace?.ToDisplayString();
+
+        return containing is not null
+            && (containing == ExporterNamespacePrefix
+                || containing.StartsWith(ExporterNamespacePrefix + ".", System.StringComparison.Ordinal));
     }
 
     private static bool IsActivity(INamedTypeSymbol? type) =>

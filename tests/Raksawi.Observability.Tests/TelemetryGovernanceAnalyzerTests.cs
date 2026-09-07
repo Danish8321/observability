@@ -133,7 +133,21 @@ public sealed class TelemetryGovernanceAnalyzerTests
     [Fact]
     public void Hand_configured_exporter_raises_RKS003()
     {
-        Assert.Equal(["RKS003"], Diagnose("Pipeline.AddOtlpExporter();"));
+        // The real SDK extension, resolved against the real assembly — the
+        // thing RKS003 exists to catch.
+        Assert.Equal(
+            ["RKS003"],
+            Diagnose("OpenTelemetry.Sdk.CreateTracerProviderBuilder().AddOtlpExporter();"));
+    }
+
+    [Fact]
+    public void A_local_method_sharing_an_exporter_name_raises_nothing()
+    {
+        // RKS003 used to match on method name alone, so a service's own wrapper
+        // extension or test helper called AddOtlpExporter was reported as a
+        // hand-assembled pipeline. A false positive on a governance rule teaches
+        // people to suppress governance rules.
+        Assert.Empty(Diagnose("Pipeline.AddOtlpExporter();"));
     }
 
     /// <summary>
@@ -146,6 +160,7 @@ public sealed class TelemetryGovernanceAnalyzerTests
         var source = $$"""
             using System.Diagnostics;
             using System.Diagnostics.Metrics;
+            using OpenTelemetry.Trace;
 
             {{declare}}
 
@@ -195,6 +210,10 @@ public sealed class TelemetryGovernanceAnalyzerTests
             .Append(typeof(DataClass).Assembly.Location)
             .Append(typeof(Activity).Assembly.Location)
             .Append(typeof(Counter<>).Assembly.Location)
+            // RKS003 is gated on the declaring namespace, so the snippet has to
+            // resolve the real SDK extension rather than a same-named local.
+            .Append(typeof(OpenTelemetry.Sdk).Assembly.Location)
+            .Append(typeof(OpenTelemetry.Exporter.OtlpExporterOptions).Assembly.Location)
             .Distinct();
     }
 }
