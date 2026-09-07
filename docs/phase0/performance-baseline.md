@@ -158,3 +158,73 @@ Rev 3: *~5% is a tripwire, not a promise.* Materially above it means find the bu
 At Phase 3, where instrumented and uninstrumented instances can run behind one
 load balancer, that A/B comparison supersedes this synthetic delta: same
 hardware, same traffic, same hour.
+
+---
+
+## Startup cost of the allowlist's assembly-closure walk
+
+Measured 2026-09-07, on the reference implementation only. Separate from Runs
+0–2: this is a one-off cost at process start, not per request, so it does not
+appear in any of their rows. Recorded here because ADR-0014 owns measurement
+method and the repo's verification contract does not accept "it is probably
+cheap".
+
+**What was measured.** `AttributeAllowlist.FromLoadedAssemblies()` — the
+transitive reference walk that calls `Assembly.Load` on anything not yet
+present (`src/Raksawi.Observability/AttributeAllowlist.cs`). It runs once,
+synchronously, inside `AddRaksawiObservability`.
+
+**Method.** A temporary stopwatch and an assembly-name diff were added inside
+that method, both samples built `-c Release`, each run five times from the
+built binary (not `dotnet run`), and the instrumentation removed afterwards —
+it is not in the tree. No collector, CouchDB or NATS was up; the walk completes
+before any of them is contacted.
+
+| Service | Assemblies loaded before the walk | Force-loaded by it | Warm | First run after build |
+|---|---|---|---|---|
+| `Screening.Worker` (.NET 10 worker) | 59 | 8 | 4.8–5.3 ms | 289 ms |
+| `Screening.Api` (.NET 10 ASP.NET Core) | 85 | 7 | 5.1–6.8 ms | 296 ms |
+
+The ~290 ms first run is cold file-cache plus JIT for the assemblies being
+pulled in, and it reproduces once per fresh deployment, not once per restart.
+That number is the honest one to quote for a container's first start.
+
+**What gets force-loaded** (worker; the API list is the same minus
+`Microsoft.Extensions.Configuration.UserSecrets`):
+
+```
+NATS.Client.Serializers.Json   NATS.Client.Abstractions   NATS.NKeys
+Raksawi.Observability.Kyc      OpenTelemetry.Instrumentation.Runtime
+System.Runtime.Loader          System.Text.Encoding.Extensions
+```
+
+`Raksawi.Observability.Kyc` appearing in that list is the point of the design.
+At the moment `AddRaksawiObservability` runs, the policy pack that declares the
+Class 2 keys is **not** loaded — scanning only loaded assemblies would have
+found none of its keys and dropped them at run time while the analyzer, reading
+the compilation's references, reported the code as correct. The walk is not
+defensive over-engineering; it is load-bearing, and this measurement is the
+evidence.
+
+**Run conditions.** Intel i7-12xxH class, 16 logical cores, Windows 11, .NET
+SDK 10.0.400, Release, no collector running, local SSD.
+
+**What this does not stand in for.**
+
+- It is the reference implementation, whose package closure is small. A real
+  estate service dragging in EF Core, WCF or an ORM has a larger graph, so
+  treat 5 ms as a **floor**, not a budget. Re-measure the same way on the three
+  services D0.3 nominates.
+- It is .NET 10 only. The 4.8 target loads a different closure through a
+  different fusion path, and that figure cannot be inferred from this one
+  (ADR-0012 defers 4.8 to Phase 2).
+- Side effects of forced loading — module initializers and static constructors
+  running earlier than the application intended — are unquantified here. None
+  was observed in the seven assemblies above, and that is an observation about
+  these seven, not a general guarantee.
+
+**Revisit if** a real service shows warm cost above ~50 ms or force-loads more
+than ~20 assemblies. The mitigations, in order, are caching the result per
+AppDomain (it is immutable after startup) and restricting the walk to
+assemblies that reference the mechanism assembly. Neither is justified at
+5 ms — measuring first was the whole point.

@@ -109,6 +109,13 @@ internal sealed class AttributeAllowlist
     /// diagnostics during an incident.
     /// </para>
     /// <para>
+    /// Measured 2026-09-07 on the reference implementation: 7-8 assemblies
+    /// force-loaded, ~5ms warm, ~290ms on a machine that has never run the
+    /// binary before. <c>Raksawi.Observability.Kyc</c> is one of the assemblies
+    /// the walk pulls in, which is the load-order trap happening for real. See
+    /// docs/phase0/performance-baseline.md for method and caveats.
+    /// </para>
+    /// <para>
     /// Walking references makes the result depend on what the application
     /// references rather than on when the call happens. A pack loaded later
     /// still cannot contribute — plugin scenarios are not supported here, and
