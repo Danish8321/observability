@@ -1,4 +1,4 @@
-Status: open — code landed 2026-09-07, awaiting a real 4.8 span (Phase 2)
+Status: open — .NET 10 half verified 2026-09-07, awaiting a real 4.8 span (Phase 2)
 
 # CouchDB URL redaction and changes-feed filtering are absent on the .NET Framework 4.8 path
 
@@ -107,5 +107,33 @@ Closing this on a code-reading is exactly what the repo's verification contract
 forbids, so it stays open with the code in place. Whoever builds the Phase 2
 fixture closes it by inspecting a stored span for `{docid}` rather than a raw
 identifier, and confirming no `_changes` span is present.
+
+## .NET 10 half verified (2026-09-07)
+
+`.claude/scripts/e2e-instrumented.sh` runs `screening-api` and
+`screening-worker` as containers against a real CouchDB, exporting through
+`deploy/collector/config.yaml` unmodified, and asserts on what reached the
+sink:
+
+```
+  ok      present the redacted CouchDB url.full      (couchdb:5984/kyc/{docid})
+  ok      absent  the CouchDB document identifier in url.full
+```
+
+Fifteen assertions, two consecutive clean runs. That discharges the "verify
+against a real span" caveat in ADR-0023 for .NET 10 — the shared policy in
+`RaksawiPipeline` demonstrably fires against real HttpClient instrumentation
+rather than only against a unit test Uri.
+
+It does **not** discharge it for 4.8, which reaches the same policy through
+`FilterHttpWebRequest`/`EnrichHttpWebRequest` — different instrumentation,
+different code path, no fixture. Verifying one runtime and inferring the other
+is the reasoning this ticket exists to refuse, so it stays open on exactly the
+terms above.
+
+The services in that script also had to reach CouchDB by container name:
+the collector keeps `url.full` only when `server.address` is the CouchDB host,
+so a run against `localhost` would have had the key dropped by the collector
+and the assertion would have proved nothing about the library.
 
 ## Comments

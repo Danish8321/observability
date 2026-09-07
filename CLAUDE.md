@@ -19,7 +19,7 @@ Service code lives in *other* repos and consumes these packages from Azure Artif
 .claude/scripts/test-fast.sh   # dotnet test -c Release — unit tests only, no collector/store/network
 ```
 
-`test-full.sh`, `contract.sh`, `e2e.sh` are named in `README.md`'s verification table but not yet written — do not claim their evidence until they exist. Never claim "done"/"works" without running the applicable script above.
+`test-full.sh` adds `otelcol validate`; `contract.sh` compares collector policy against the declared allowlist; `e2e.sh` asserts on telemetry received from the collector; `e2e-instrumented.sh` runs both reference services as containers and asserts on what they actually emitted. The last three need a running docker daemon and fail rather than skip without one. Never claim "done"/"works" without running the applicable script.
 
 Single test: `dotnet test --filter "FullyQualifiedName~ClassName.MethodName"`.
 

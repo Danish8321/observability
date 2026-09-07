@@ -60,6 +60,11 @@ span data.
   is retained as defense-in-depth rather than as a compliance-blocking fix —
   it still fails open, and that behavior should still be verified against a
   real span before being relied on (see `.scratch/demo-readiness/issues/01-*`).
+  **Verified on .NET 10, 2026-09-07:** `e2e-instrumented.sh` runs the reference
+  services against a real CouchDB and asserts on what reached the sink —
+  `http://couchdb:5984/kyc/{docid}` present, the document identifier absent.
+  The 4.8 path runs the same policy through different instrumentation hooks and
+  has no fixture yet, so it remains unverified rather than verified by analogy.
 - The SQL client instrumentation problem, and with it ADR-0004's
   `RecordException` decision for database spans, **no longer applies**. ADR-0004
   keeps its rules for exception messages generally; its database-specific

@@ -120,8 +120,8 @@ of a constraint that is expensive to retrofit.
 
 ## Verification
 
-Nothing is described as working without evidence from a named script. All five
-exist and all five pass; two of them still fail by design on a machine without
+Nothing is described as working without evidence from a named script. All six
+exist and all six pass; three of them still fail by design on a machine without
 docker, rather than skipping.
 
 | Script | Proves | Status |
@@ -131,9 +131,11 @@ docker, rather than skipping.
 | `test-full.sh` | The above, plus `otelcol validate` on collector configuration | working |
 | `contract.sh` | Collector policy and the declared allowlist express the same rules | working — comparison passes and `otelcol validate` accepts the OTTL (2026-08-25). Still **fails** on a machine with neither `otelcol` nor a running docker daemon, by design |
 | `e2e.sh` | Assertions against *received* telemetry, not configuration | working — fourteen assertions pass against telemetry that came out of the collector (2026-08-26). **Fails** without a running docker daemon, by design |
+| `e2e-instrumented.sh` | The same, on telemetry emitted by the reference services actually running | working — fifteen assertions pass against telemetry that left `screening-api` and `screening-worker` and survived the collector (2026-09-07). **Fails** without a running docker daemon, by design |
 
-`contract.sh` and `e2e.sh` exit 1 with an explanation rather than passing
-vacuously or being omitted when their prerequisites are absent.
+`contract.sh`, `e2e.sh` and `e2e-instrumented.sh` exit 1 with an explanation
+rather than passing vacuously or being omitted when their prerequisites are
+absent.
 
 `e2e.sh` runs two collectors: the one under test loads
 `deploy/collector/config.yaml` **byte-for-byte unmodified**, and the sink is
@@ -145,6 +147,18 @@ in-process allowlist and the analyzer have their own unit tests.
 `e2e.sh` exists because Rev 3 **Gate 3** requires redaction verified by
 inspecting stored data. A test that reads configuration would verify intent, not
 outcome.
+
+`e2e-instrumented.sh` closes the gap `e2e.sh` states in its own header. A
+hand-written OTLP payload proves what the collector does with telemetry; it
+proves nothing about what a service emits. This one publishes both reference
+services, runs them as containers alongside CouchDB and NATS, posts one
+application, and asserts on what reached the sink: both service resources, the
+producer and consumer spans, the worker's own counter and histogram, the
+redacted CouchDB `url.full` with the document identifier gone, and a Class 3
+applicant name — written to CouchDB in the same request — absent from every
+signal. The services reach CouchDB by container name because the collector
+keeps `url.full` only for the CouchDB host; on `localhost` the key would be
+dropped before any assertion could see whether the library had redacted it.
 
 CI is Azure Pipelines. Every stage calls one of these scripts; the scripts are
 the contract and the pipeline is only a caller.
@@ -215,6 +229,13 @@ non-CouchDB span were each observed absent from received telemetry, with
 `url.full` on the CouchDB span in the same payload observed present. Fourteen
 assertions as of 2026-08-26, five of them on resource attributes across both
 pipelines.
+
+Synthetic payloads verify the collector and stop there. Since 2026-09-07
+`e2e-instrumented.sh` runs the reference services for real, and
+`CouchDbUrlPolicy` has been observed redacting a genuine CouchDB span —
+`http://couchdb:5984/kyc/{docid}` reached the sink and the document identifier
+did not (ADR-0023). That verification covers .NET 10 only; the 4.8 path has
+the same code and no fixture yet.
 Both packages are strong-named as of 2026-08-25, so ADR-0017's provenance
 check on allowlist declarations is real at both enforcement points rather than
 passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist.md). Ten accepted ADRs are deliberately unimplemented until
