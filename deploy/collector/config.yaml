@@ -45,6 +45,30 @@ receivers:
             - regex: 'server_id'
               action: labeldrop
 
+  # 🔒 The collector scraping itself — Rev 3 I3.8, a monitoring stack that
+  # reports healthy while dead is the failure this exists to prevent. The data
+  # existed already (service.telemetry.metrics.level is detailed below); until
+  # now nothing carried it anywhere, so it was readable only by shelling into
+  # the container, which is not a control.
+  #
+  # localhost, not 0.0.0.0: the reader and this receiver are the same process,
+  # so the endpoint never needs to leave it.
+  prometheus/collector:
+    config:
+      scrape_configs:
+        - job_name: otelcol
+          scrape_interval: 15s
+          static_configs:
+            - targets: [localhost:8888]
+          metric_relabel_configs:
+            # otelcol_* only. The same endpoint also publishes the OTLP
+            # receiver's http_server_*, the gRPC exporter's rpc_client_* and
+            # promhttp_*'s own counters, which restate the otelcol_ series one
+            # layer down and disagree with them at the edges.
+            - source_labels: [__name__]
+              regex: 'otelcol_.*'
+              action: keep
+
 processors:
   batch:
     timeout: 5s
@@ -226,6 +250,18 @@ service:
       receivers: [prometheus/nats]
       processors: [memory_limiter, transform/nats, transform/allowlist, resource, batch]
       exporters: [otlp/signoz]
+
+    # 🔒 The collector's own health, on the same terms as everything else: it
+    # goes through the allowlist too. A self-report exempt from the rules it
+    # enforces is the shape of every monitoring stack that lies.
+    #
+    # This does loop — exporting these metrics increments the exporter counters
+    # that the next scrape reads. It converges rather than amplifies: the series
+    # count is fixed, and each scrape is one more batch, not one more per batch.
+    metrics/internal:
+      receivers: [prometheus/collector]
+      processors: [memory_limiter, transform/allowlist, resource, batch]
+      exporters: [otlp/signoz]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]
@@ -235,3 +271,12 @@ service:
       # The stack's own health. Rev 3 I3.8 — a monitoring stack that reports
       # healthy while dead is the failure this exists to prevent.
       level: detailed
+      # Exposed for prometheus/collector above to scrape. Without a reader the
+      # level setting produces metrics that exist and reach nothing, which is
+      # the same silent shape as an unregistered meter (ADR-0005).
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: localhost
+                port: 8888

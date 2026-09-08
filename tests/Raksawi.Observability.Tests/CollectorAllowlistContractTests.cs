@@ -178,16 +178,50 @@ public sealed class CollectorAllowlistContractTests
         // alongside the broker's. Storing those under a job named "nats" makes
         // exporter health read as broker health, which is the failure dashboard
         // 3 exists to catch, inverted.
-        // Comments stripped: this asserts on what the collector reads, and the
-        // prose above the config names the very series it excludes.
-        var scrape = string.Join('\n', Section("prometheus/nats:", "processors:")
-            .Split('\n')
-            .Where(line => !line.TrimStart().StartsWith('#')));
+        var scrape = Receiver("prometheus/nats");
 
         Assert.Contains("action: keep", scrape);
         Assert.Contains("gnatsd_", scrape);
         Assert.DoesNotContain("go_memstats", scrape);
         Assert.DoesNotContain("promhttp_", scrape);
+    }
+
+    [Fact]
+    public void The_collector_scrapes_its_own_health_and_keeps_only_its_own_series()
+    {
+        // Rev 3 I3.8. level: detailed produced these metrics before this
+        // receiver existed, and nothing carried them anywhere — readable only
+        // by shelling into the container, which is not a control. A reader
+        // without a scrape, or a scrape without a reader, is the same nothing.
+        Assert.Contains("prometheus/collector:", Config);
+        Assert.Contains("port: 8888", Section("  telemetry:", "\n\n"));
+
+        var scrape = Receiver("prometheus/collector");
+
+        Assert.Contains("action: keep", scrape);
+        Assert.Contains("otelcol_", scrape);
+
+        // The same endpoint restates the otelcol_ series one layer down as
+        // http_server_* and rpc_client_*, and the two disagree at the edges.
+        Assert.DoesNotContain("http_server_", scrape);
+        Assert.DoesNotContain("rpc_client_", scrape);
+    }
+
+    [Fact]
+    public void The_collectors_own_metrics_are_not_exempt_from_the_allowlist()
+    {
+        // 🔒 A self-report exempt from the rules it enforces is the shape of
+        // every monitoring stack that lies. Asserted separately from the
+        // all-pipelines test because this is the one pipeline where an
+        // exemption would look defensible.
+        var internals = Pipelines().Single(pipeline => pipeline.Name == "metrics/internal");
+
+        Assert.Contains("transform/allowlist", internals.Body);
+        Assert.Contains("prometheus/collector", internals.Body);
+
+        // transform/nats sets messaging.system unconditionally. On the
+        // collector's own metrics that would label the stack as a broker.
+        Assert.DoesNotContain("transform/nats", internals.Body);
     }
 
     [Theory]
@@ -286,6 +320,26 @@ public sealed class CollectorAllowlistContractTests
         Section("log_statements", "  resource:").Split('\n')
             .Where(line => line.Contains(containing, StringComparison.Ordinal)
                 && !line.Contains("resource.attributes", StringComparison.Ordinal));
+
+    /// <summary>
+    /// One receiver's configuration, ended by the next entry at its own indent.
+    /// Comments are stripped: these tests assert on what the collector reads,
+    /// and the prose above a receiver names the very series it excludes.
+    /// </summary>
+    private static string Receiver(string name)
+    {
+        var start = Config.IndexOf("  " + name + ":", StringComparison.Ordinal);
+
+        Assert.True(start >= 0, name + " is not configured as a receiver");
+
+        var body = Config[start..].Split('\n').Skip(1)
+            .TakeWhile(line => line.Trim().Length == 0
+                || line.StartsWith("   ", StringComparison.Ordinal)
+                || line.TrimStart().StartsWith('#'))
+            .Where(line => !line.TrimStart().StartsWith('#'));
+
+        return string.Join('\n', body);
+    }
 
     /// <summary>
     /// Every pipeline under service.pipelines, discovered rather than named.

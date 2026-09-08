@@ -204,21 +204,40 @@ perfect health while dead — Rev 3 **I3.8**, **I3.9**.
 |---|---|---|---|
 | 4.1 | Coverage — reporting ÷ expected | service register denominator | ❌ no register file |
 | 4.2 | Freshness, ingress to queryable p95 | synthetic probe | ❌ |
-| 4.3 | Spans received / dropped | collector internal metrics | ⚠️ not exported |
-| 4.4 | Queue depth and queue age | same | ⚠️ not exported |
-| 4.5 | Export failure rate | same | ⚠️ not exported |
-| 4.6 | Collector memory, ingestion, disk | same | ⚠️ not exported |
+| 4.3 | Spans received / dropped | `otelcol_receiver_accepted_spans_total` | ✅ |
+| 4.4 | Queue depth and queue age | `otelcol_exporter_queue_size` | ⚠️ depth only, no age metric |
+| 4.5 | Export failure rate | `otelcol_exporter_send_failed_spans_total` | ✅ |
+| 4.6 | Collector memory, ingestion, disk | `otelcol_process_memory_rss_bytes` | ⚠️ no disk metric exists |
 | 4.7 | Query latency | SigNoz's own telemetry | ⚠️ |
 | 4.8 | Backup status, age of last **restored** backup | nothing | ❌ |
 | 4.9 | **Dropped attribute keys, by key** | `raksawi.telemetry.attributes.dropped` | ✅ |
 | 4.10 | W3C format warnings, by service | `raksawi.telemetry.trace_context.corrected` | ✅ .NET 10 |
 | 4.11 | Dead man's switch, four states | alerting | ❌ |
 
-**4.3 through 4.7 are one piece of work, not five.** The collector's
-`service.telemetry.metrics.level` is already `detailed`, so the data exists —
-nothing scrapes or forwards it. One `prometheus` receiver pointed at the
-collector's own endpoint, exported down the existing metrics pipeline, lights
-all four.
+**4.3 through 4.6 were one piece of work, and it is done.** The collector's
+`service.telemetry.metrics.level` was already `detailed`, so the data existed
+and reached nothing — readable only by shelling into the container, which is not
+a control. A `pull` reader on `localhost:8888` and a `prometheus/collector`
+receiver now carry it, through the allowlist like everything else
+([ADR-0031](../adr/0031-the-collector-scrapes-itself.md)).
+
+Two of the four are still partial, and the missing halves do not exist rather
+than being unwired:
+
+- **4.4 wants queue depth *and queue age*.** `otelcol_exporter_queue_size` gives
+  depth. There is no age metric. A full queue and a stuck queue are identical in
+  depth, and only the second one is an incident.
+- **4.6 wants memory, ingestion *and disk*.** The first two arrive. The
+  `file_storage` extension behind the sending queue publishes nothing, so the
+  disk the durability story depends on is unmeasured — while its size is still
+  a placeholder (Q13).
+
+4.7 is unaffected: it reads SigNoz's own telemetry, not the collector's.
+
+🔒 **None of this detects the collector being dead.** A dead collector stops
+scraping itself; the series just stop, and absence looks identical to a quiet
+period. That is 4.11's job, it needs alerting rather than a panel, and it is
+still unbuilt.
 
 **4.10 reads a gauge, not a counter.**
 [ADR-0005](../adr/0005-enforcing-the-framework-wiring.md) specifies that the
@@ -254,13 +273,12 @@ the specific failure it exists to catch
 
 ## What this leaves
 
-Thirteen panels of thirty are buildable today, eight more are partial, and nine
+Fifteen panels of thirty are buildable today, six more are partial, and nine
 have no data source at all. The gaps name concrete missing pieces, in rough
 order of value per unit of work:
 
 | Work | Unblocks |
 |---|---|
-| `prometheus` receiver on the collector's own endpoint | 4.3, 4.4, 4.5, 4.6 |
 | `AddProcessInstrumentation()` | 1.4 |
 | Service register file (ADR-0021) | 4.1 |
 | Tail sampling policy | 2.6 |

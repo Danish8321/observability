@@ -37,6 +37,7 @@ silently.
 | [0028](./0028-logs-are-enforced-in-process-on-net10-only.md) | Logs allowlisted in-process on .NET 10, at the collector only on 4.8 | Accepted — completes 0003 for logs, deviates from Rev 3 on 4.8 |
 | [0029](./0029-net48-deferred-out-of-the-build.md) | .NET Framework 4.8 deferred entirely — out of the build, not merely unvalidated | Accepted — reverses 0012, deviates from Rev 3 |
 | [0030](./0030-broker-health-arrives-by-scrape.md) | Broker health arrives by scrape, in a pipeline of its own | Accepted — extends 0009, first non-OTLP path |
+| [0031](./0031-the-collector-scrapes-itself.md) | The collector scrapes itself, and is not exempt from its own allowlist | Accepted — extends 0030, implements I3.8 |
 
 ## Deviations from Rev 3
 
@@ -73,7 +74,7 @@ are the places this repository knowingly differs, each argued in its own ADR:
 
 **Package shape** — 0001, 0011, 0012, 0017, 0029
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
-0026, 0028, 0030
+0026, 0028, 0030, 0031
 **Telemetry schema** — 0006, 0007, 0008
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022

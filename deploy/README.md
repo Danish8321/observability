@@ -1,7 +1,7 @@
 # Deployment — demo only
 
 🔒 **This configuration is for staging or synthetic workloads only.** It has no
-allowlist enforcement, no access tiers, and no sampling policy. Per
+access tiers and no sampling policy. Per
 [ADR-0022](../docs/adr/0022-demo-first-resequencing.md) those are deferred until
 after the demo, and the boundary that makes deferring them safe is that
 **production KYC traffic does not pass through this stack.**
@@ -16,8 +16,9 @@ NATS ──JSON──▶ nats-exporter ─┘
      :8222                 scraped :7777
 ```
 
-Two hops rather than one, deliberately. The collector is where the allowlist,
-pattern scanning, and agent-service governance will attach
+Two hops rather than one, deliberately. The collector is where the allowlist
+attaches — it already does — and where pattern scanning and agent-service
+governance will
 ([ADR-0003](../docs/adr/0003-runtime-allowlist-at-source.md),
 [0004](../docs/adr/0004-free-text-telemetry-and-exceptions.md),
 [0009](../docs/adr/0009-governing-agent-instrumented-services.md)). Pointing
@@ -61,6 +62,22 @@ not appear at all. See dashboard 3 in
 [`../docs/onboarding/backend-and-dashboards.md`](../docs/onboarding/backend-and-dashboards.md)
 before panelling any of it as backlog depth.
 
+## The collector's own health
+
+The collector scrapes itself on `localhost:8888` and sends the result down a
+`metrics/internal` pipeline — through the same allowlist as everything else,
+because a stack exempt from the rules it enforces is the shape of every
+monitoring system that lies
+([ADR-0031](../docs/adr/0031-the-collector-scrapes-itself.md), Rev 3 I3.8).
+
+`otelcol_receiver_accepted_spans_total`, `otelcol_exporter_queue_size`,
+`otelcol_exporter_send_failed_spans_total` and `otelcol_process_memory_rss_bytes`
+are the four that matter.
+
+🔒 **None of it detects the collector being dead.** A dead collector stops
+scraping itself and the series simply stop, which looks identical to a quiet
+period. That needs alerting, not a panel, and it is not built.
+
 ## Service configuration
 
 ```csharp
@@ -83,7 +100,9 @@ apply and document identifiers reach the store intact.
 
 - [x] QD2 answered — document IDs are opaque, not derived from applicant data
       (2026-08-11)
-- [ ] Allowlist processor generated and attached at the collector
+- [x] Allowlist attached at the collector — `transform/allowlist`, hand-written
+      rather than generated, and held against `AllowlistRules.cs` by
+      `contract.sh` (2026-09-08)
 - [ ] Access tiers enforced ([ADR-0020](../docs/adr/0020-telemetry-access-tiers.md))
 - [ ] Sampling policy set from measured volume
 - [ ] Queue sized from a measured restore window, not the placeholder here

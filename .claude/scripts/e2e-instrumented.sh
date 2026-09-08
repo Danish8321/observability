@@ -214,7 +214,8 @@ i=0
 dump_received
 while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
     || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null \
-    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null; do
+    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null \
+    || ! grep -q 'otelcol_receiver_accepted_spans' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 120 ]; then
         echo "e2e-instrumented.sh: the worker metric, log or NATS scrape never arrived." >&2
@@ -369,6 +370,21 @@ fi
 # server_id restates the scrape URL on every series and is dropped at the
 # receiver. It is also the only label carrying a URL, so a leak is visible.
 absent '"http://nats:8222"' 'the scrape URL as a datapoint label'
+
+# 🔒 The collector's own health (Rev 3 I3.8, ADR-0030). level: detailed had
+# produced these all along and carried them nowhere; the assertion is that they
+# now leave the process, which is the whole difference between a metric and a
+# control. Asserted at the sink, so it also proves the self-scrape survives the
+# allowlist it is subject to.
+present 'otelcol_receiver_accepted_spans' 'spans accepted, from the self-scrape'
+present 'otelcol_exporter_queue_size' 'exporter queue depth'
+present 'otelcol_process_memory_rss_bytes' 'collector memory'
+
+# The same endpoint restates those one layer down as the OTLP receiver's own
+# http_server_* and the gRPC exporter's rpc_client_*. They disagree with the
+# otelcol_ series at the edges, so panelling either is a coin toss.
+absent 'http_server_request_duration' "the receiver's own HTTP server metrics"
+absent 'rpc_client_duration' "the exporter's own gRPC client metrics"
 
 # Carve-outs, on real HTTP spans this time. CouchDB is reached with a Basic
 # credential, so the header carve-out is doing real work here.
