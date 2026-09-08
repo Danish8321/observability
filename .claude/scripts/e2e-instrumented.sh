@@ -270,6 +270,15 @@ present 'raksawi.telemetry.trace_context.corrected' 'the trace-context gauge'
 present '"application.id"' 'application.id on a span'
 present '"correlation.id"' 'correlation.id on a span'
 
+# 🔒 Enumerated messaging keys. messaging.* is admitted key by key rather than
+# by prefix, so these prove the enumeration covers what the NATS instrumentation
+# actually emits — the failure being guarded against is an allowlist tightened
+# against the specification instead of against a real span, which drops
+# telemetry silently and looks identical to instrumentation not running.
+present '"messaging.system"' 'the enumerated messaging.system'
+present '"messaging.destination.name"' 'the enumerated messaging.destination.name'
+present '"messaging.nats.message.subject"' 'a NATS-specific enumerated key'
+
 # 🔒 CouchDB redaction, on a real span rather than a unit test Uri (ADR-0023).
 # The document identifier must not survive; the redacted URL must, because a
 # CouchDB span without its URL has no diagnostic value.
@@ -287,6 +296,16 @@ if grep 'screening.applications.screened' "$received" | grep -q '"application.id
     failed=1
 else
     echo "  ok      absent  application.id as a metric dimension"
+fi
+
+# 🔒 The Class 2 key that actually travels is messaging.message.id, not the
+# declared message.id, which nothing emits. It is permitted on a span above and
+# must be refused as a metric dimension like every other Class 2 identifier.
+if grep 'screening.applications.screened' "$received" | grep -q '"messaging.message.id"'; then
+    echo "  FAILED  LEAKED  messaging.message.id as a metric dimension" >&2
+    failed=1
+else
+    echo "  ok      absent  messaging.message.id as a metric dimension"
 fi
 
 # 🔒 Logs (ADR-0028). The worker writes one line with two structured

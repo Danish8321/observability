@@ -69,8 +69,16 @@ processors:
           - delete_matching_keys(span.attributes, "^url\\.(full|query)$") where span.attributes["server.address"] != nil and IsMatch(span.attributes["server.address"], "^couchdb(\\.raksawi\\.internal)?$") == false
 
           # Default deny. Families, then the declared Class 2 keys (ADR-0017),
-          # which are exact matches and never prefixes.
-          - keep_matching_keys(span.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
+          # then the enumerated messaging keys — both exact matches, never
+          # prefixes.
+          #
+          # 🔒 messaging. is NOT a family here. The convention is experimental
+          # and has moved repeatedly, so it is admitted key by key: a rename
+          # upstream shows up as a dropped-key count and a review rather than
+          # as telemetry that quietly changes shape. The set is what the
+          # reference services actually emitted, dumped at the sink on
+          # 2026-09-08 (ADR-0018's empirical half).
+          - keep_matching_keys(span.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$")
 
     metric_statements:
       # Same resource rule as the traces pipeline. Stated twice because the
@@ -88,7 +96,11 @@ processors:
           # above rather than a stricter copy of it. An agent-instrumented
           # service has no analyzer and no in-process processor, so for those
           # services this line is the whole of the rule.
-          - delete_matching_keys(datapoint.attributes, "^(application\\.id|correlation\\.id|session\\.id|causation\\.id|message\\.id|tenant\\.id)$")
+          # 🔒 messaging.message.id is listed alongside message.id because it is
+          # the spelling that actually travels — message.id is declared and
+          # emitted by nothing, so a rule naming only it protected a key that
+          # does not exist.
+          - delete_matching_keys(datapoint.attributes, "^(application\\.id|correlation\\.id|session\\.id|causation\\.id|message\\.id|messaging\\.message\\.id|tenant\\.id)$")
           - delete_matching_keys(datapoint.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
           - delete_matching_keys(datapoint.attributes, "^(db\\.query\\.text|db\\.statement|url\\.full|url\\.query)$")
 
@@ -114,9 +126,11 @@ processors:
           # exemption, because the precondition for the exemption is absent.
           - delete_matching_keys(log.attributes, "^url\\.(full|query)$")
 
-          # Default deny, the same families and declared Class 2 keys the span
-          # keep uses — Class 2 is permitted on spans AND logs (Rev 3 D2.1).
-          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|messaging\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$")
+          # Default deny, the same families, declared Class 2 keys and
+          # enumerated messaging keys the span keep uses — Class 2 is permitted
+          # on spans AND logs (Rev 3 D2.1), and a family present on one and
+          # missing from the other is drift either way.
+          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$")
 
   resource:
     attributes:

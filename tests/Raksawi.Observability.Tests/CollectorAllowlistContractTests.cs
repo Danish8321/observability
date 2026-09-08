@@ -24,6 +24,38 @@ public sealed class CollectorAllowlistContractTests
     }
 
     [Theory]
+    [MemberData(nameof(AllowedMessagingKeys))]
+    public void Every_enumerated_messaging_key_appears_in_the_collector_keep(string key)
+    {
+        Assert.Contains(Escaped(key), KeepExpression());
+    }
+
+    [Theory]
+    [MemberData(nameof(AllowedMessagingKeys))]
+    public void Every_enumerated_messaging_key_appears_in_the_collector_log_keep(string key)
+    {
+        Assert.Contains(Escaped(key), LogKeep());
+    }
+
+    [Fact]
+    public void Messaging_is_not_admitted_as_a_family_on_either_side()
+    {
+        // 🔒 The stability policy in docs/allowlist.md says messaging.* is
+        // enumerated individually because the convention keeps moving. Both
+        // sides had been admitting the whole prefix anyway, which is what this
+        // asserts can no longer happen: a family allow here would let a renamed
+        // or newly invented messaging key through all three enforcement points
+        // without review.
+        Assert.DoesNotContain("messaging.", AllowlistRules.AllowedFamilies);
+        Assert.False(AllowlistRules.IsAllowedByFamily("messaging.invented.key", isCouchDbSpan: false));
+
+        // The collector states it in OTTL. "messaging\\.|" would be the family
+        // form; every legitimate spelling here is followed by a key segment.
+        Assert.DoesNotContain("messaging\\\\.|", KeepExpression());
+        Assert.DoesNotContain("messaging\\\\.|", LogKeep());
+    }
+
+    [Theory]
     [MemberData(nameof(CarveOuts))]
     public void Every_carve_out_appears_in_the_collector_deny(string carveOut)
     {
@@ -175,6 +207,8 @@ public sealed class CollectorAllowlistContractTests
     }
 
     public static TheoryData<string> AllowedFamilies() => Load(AllowlistRules.AllowedFamilies);
+
+    public static TheoryData<string> AllowedMessagingKeys() => Load(AllowlistRules.AllowedMessagingKeys);
 
     public static TheoryData<string> CarveOuts() =>
         Load([.. AllowlistRules.DeniedPrefixes, .. AllowlistRules.DeniedKeys]);

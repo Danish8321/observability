@@ -142,21 +142,27 @@ furthest from existing.
 | 3.5 | Processing duration p95/p99 | `screening.duration` | ✅ |
 | 3.6 | What is in the DLQ, by workflow | no DLQ exists | ❌ |
 
-Three separate blockers, and they are not the same work:
+Two separate blockers, and they are not the same work:
 
-1. **The dimension is not allowlisted.** Every panel above is specified as
-   dimensioned by `messaging.consumer.group.name`. `messaging.*` is admitted
-   only key-by-key ("Experimental — enumerate individually",
-   [`../allowlist.md`](../allowlist.md)) and the enumeration is an open checkbox
-   in that document. Until it is done, these dimensions are dropped in-process
-   and the panels are empty by construction.
-2. **The NATS monitoring endpoint is not scraped.** The demo compose exposes it
+1. **The NATS monitoring endpoint is not scraped.** The demo compose exposes it
    (`nats -m 8222`), but the collector has no `prometheus` receiver, so 3.2
    has no data path at all.
-3. **The reference service has no DLQ.** `samples/` retries three times and
+2. **The reference service has no DLQ.** `samples/` retries three times and
    abandons, incrementing `screening.applications.abandoned`. That counter is a
    genuine signal — build it as an abandonment-rate panel — but it is not DLQ
    depth, and substituting one for the other would hide 3.3's failure mode.
+
+**The dimension is no longer a blocker, and never was one.** Every panel above
+is specified as dimensioned by `messaging.consumer.group.name`. An earlier
+revision of this document claimed that key was dropped in-process because
+`messaging.*` was admitted key-by-key; that was wrong — `messaging.` was
+allowed as a whole family prefix in both the library and the collector, so
+nothing was being dropped. The enumeration the allowlist's stability policy
+called for landed on 2026-09-08 ([`../allowlist.md`](../allowlist.md)): thirteen
+keys, exact-match, `messaging.consumer.group.name` admitted ahead of use
+precisely so this dashboard is not blocked on an allowlist review when the
+instrumentation arrives. What is missing is the instrumentation, not the
+permission.
 
 3.4 is answerable from span events today (`samples/README.md`, retry-as-event)
 but not as a metric, so it is a trace query rather than a panel.
@@ -226,7 +232,6 @@ order of value per unit of work:
 
 | Work | Unblocks |
 |---|---|
-| Enumerate `messaging.*` keys in the allowlist | 3.1–3.6 dimensions |
 | `prometheus` receiver on the collector's own endpoint | 4.3, 4.4, 4.5, 4.6 |
 | `prometheus` receiver on NATS `:8222` | 3.2 |
 | `AddProcessInstrumentation()` | 1.4 |

@@ -71,11 +71,54 @@ telemetry; an unpinned one would let it change underneath us.
 | `url.*` | 0/1 | Subject to carve-outs below |
 | `server.*`, `client.*`, `network.*` | 0 | Post-rename network attributes |
 | `db.*` | 0/1 | Subject to carve-outs below |
-| `messaging.*` | 0/1 | **Experimental** — enumerate individually |
 | `code.*` | 0 | Subject to carve-outs below |
 | `exception.*` | 0/1 | Subject to carve-outs below |
 | `user_agent.*` | 0 | |
 | Class 2 keys | 2 | Declared by policy packs, never by prefix |
+| `messaging.*` keys | 0/2 | **Not a family.** Enumerated individually below |
+
+## 🔒 `messaging.*` — enumerated, not a family
+
+The stability policy above says experimental attributes are enumerated
+individually. Until 2026-09-08 this document said that while
+`AllowlistRules.AllowedFamilies` and both collector keeps admitted the whole
+`messaging.` prefix — the policy was stated and not implemented, so any
+messaging key, including one invented by a service, reached the store on the
+prefix alone.
+
+This is the enumeration. It is **what the reference services actually emitted at
+the sink**, dumped from `e2e-instrumented.sh` and reconciled key by key, rather
+than read off the specification — the empirical half of
+[ADR-0018](./adr/0018-allowlist-composition.md). Eight of the twelve are set by
+the NATS client's own instrumentation and were named nowhere in this repository
+before this pass.
+
+| Key | Class | Source | Notes |
+|---|---|---|---|
+| `messaging.system` | 0 | sample + client | `nats` |
+| `messaging.operation` | 0 | client | `publish` / `receive` |
+| `messaging.destination.name` | 0 | sample + client | The subject. Structural in this estate — subjects are static names, not templates carrying identifiers |
+| `messaging.destination.template` | 0 | client | |
+| `messaging.destination.temporary` | 0 | client | |
+| `messaging.destination_publish.name` | 0 | client | |
+| `messaging.nats.message.subject` | 0 | client | NATS-specific spelling of the subject |
+| `messaging.message.id` | **2** | sample + client | 🔒 Opaque per-message identifier. See the note below |
+| `messaging.message.body.size` | 0 | client | |
+| `messaging.message.envelope.size` | 0 | client | |
+| `messaging.client_id` | 0 | client | |
+| `messaging.attempt` | 0 | sample | **Not a semantic convention key.** The reference consumer sets it on a retry and dashboard 3.4 reads it; ADR-0025 requires a key we invent to be declared rather than admitted by prefix, so it is named here deliberately |
+| `messaging.consumer.group.name` | 0 | *nothing yet* | Specified by [`diagnostic-queries.md`](./diagnostic-queries.md) as the dimension for every async pipeline panel. The sample uses core NATS with no consumer group, so nothing emits it. Admitted ahead of use so the allowlist is not the blocker when it appears — the precedent is `db.query.text`, carved out costlessly against a component that does not exist yet |
+
+🔒 **`messaging.message.id` is the identifier that actually travels.** The
+declared Class 2 key is `message.id` ([ADR-0007](./adr/0007-correlation-lifetime.md))
+and **nothing emits it** — confirmed at the sink. The never-a-metric-dimension
+rule named only the declared spelling, so it protected a key that does not exist
+while the key that does exist was unprotected. Both spellings are now listed, on
+spans and logs as Class 2, and refused as metric dimensions.
+
+A key absent from this table is dropped. That is the point: the convention has
+moved repeatedly, so a rename upstream surfaces as a dropped-key count and a
+review rather than as telemetry that quietly changes shape.
 
 ## Allowed families — on a log record
 
@@ -180,7 +223,7 @@ ADR-0017.
 |---|---|---|
 | `correlation.id` | mechanism | Workflow identity — [ADR-0007](./adr/0007-correlation-lifetime.md) |
 | `session.id` | mechanism | Browser page load — ADR-0007 |
-| `message.id` | mechanism | ADR-0007 |
+| `message.id` | mechanism | ADR-0007. 🔒 **Emitted by nothing** — the identifier that travels is `messaging.message.id`, enumerated above and classified the same way |
 | `causation.id` | mechanism | ADR-0007 |
 | `tenant.id` | mechanism | **Withheld** — [ADR-0011](./adr/0011-estate-vocabulary-versus-domain-vocabulary.md). D0.3 closed by working position ([ADR-0024](./adr/0024-estate-inventory-by-working-position-not-sweep.md)) and the position is a uniformly-KYC estate today, so it stays undeclared and is therefore dropped at run time |
 | `application.id` | Kyc | Opaque applicant reference |
@@ -234,7 +277,11 @@ Reconciliation at Gate 2:
 - [ ] Dump what a 4.8 agent actually puts on a **resource**; reconcile against
       the resource families. ADR-0026 settles that set; it does not validate it
 - [ ] Reconcile against the families above; classify anything unaccounted for
-- [ ] Enumerate the `messaging.*` keys actually used, individually
+- [x] Enumerate the `messaging.*` keys actually used, individually — done
+      2026-09-08 from an `e2e-instrumented.sh` sink dump, twelve keys emitted
+      plus `messaging.consumer.group.name` admitted ahead of use. Covers .NET 10
+      and NATS only; a second dump is needed when another broker or runtime
+      appears
 - [ ] Set the pinned semconv version in code
 - [ ] Confirm the dropped-key metric fires for a deliberately unlisted key
 - [ ] Dump every attribute key emitted on a **log record** by the fixture, and

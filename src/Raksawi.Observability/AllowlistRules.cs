@@ -29,7 +29,64 @@ internal static class AllowlistRules
         "service.", "deployment.", "vcs.", "cicd.",
         "telemetry.sdk.", "process.", "host.",
         "http.", "url.", "server.", "client.", "network.",
-        "db.", "messaging.", "code.", "exception.", "user_agent.",
+        "db.", "code.", "exception.", "user_agent.",
+    ];
+
+    /// <summary>
+    /// 🔒 <c>messaging.*</c> is experimental and is admitted key by key, never
+    /// by prefix — the stability policy in <c>docs/allowlist.md</c>, which the
+    /// family list above had been quietly contradicting since the first commit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This set is what the reference services actually emitted at the sink,
+    /// dumped from <c>e2e-instrumented.sh</c> on 2026-09-08 rather than read
+    /// off the specification — the empirical half of ADR-0018. Eight of the
+    /// twelve come from the NATS client's own instrumentation and were never
+    /// named anywhere in this repository; they reached the store on the family
+    /// prefix alone.
+    /// </para>
+    /// <para>
+    /// A key absent here is dropped, which is the point: the convention has
+    /// moved repeatedly, and a rename upstream should surface as a dropped-key
+    /// count and a review rather than as telemetry that silently changes shape.
+    /// </para>
+    /// </remarks>
+    internal static readonly string[] AllowedMessagingKeys =
+    [
+        // What and where. The subject is structural in this estate — subjects
+        // are static names, not templates carrying identifiers.
+        "messaging.system",
+        "messaging.operation",
+        "messaging.destination.name",
+        "messaging.destination.template",
+        "messaging.destination.temporary",
+        "messaging.destination_publish.name",
+        "messaging.nats.message.subject",
+
+        // 🔒 Class 2. An opaque per-message identifier, and the reason
+        // NeverAMetricDimension carries it: see the note there.
+        "messaging.message.id",
+
+        // Sizes and client identity. Class 0.
+        "messaging.message.body.size",
+        "messaging.message.envelope.size",
+        "messaging.client_id",
+
+        // Not a semantic convention key. The reference consumer sets it on a
+        // retry (ADR-0025 requires a key we invent to be declared, not admitted
+        // by prefix), and dashboard 3.4 reads it. Named here so that stays a
+        // decision rather than a side effect of the prefix that used to cover
+        // it.
+        "messaging.attempt",
+
+        // Specified by docs/diagnostic-queries.md as the dimension for every
+        // async pipeline panel, and emitted by nothing yet — the sample uses
+        // core NATS with no consumer group. Admitted ahead of use so the
+        // allowlist is not the blocker when it does appear; the precedent is
+        // db.query.text, carved out costlessly against a component that does
+        // not exist yet.
+        "messaging.consumer.group.name",
     ];
 
     /// <summary>
@@ -120,10 +177,18 @@ internal static class AllowlistRules
     /// Class 2 keys that must never appear as a metric dimension (Rev 3 D2.1
     /// rule 1), regardless of being allowlisted for spans and logs.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <c>messaging.message.id</c> is here for a reason worth stating: the
+    /// declared Class 2 key is <c>message.id</c> (ADR-0007), and <b>nothing
+    /// emits it</b>. The identifier that actually travels is the semantic
+    /// convention's <c>messaging.message.id</c>, confirmed at the sink on
+    /// 2026-09-08. Listing only the declared spelling left the rule naming a key
+    /// that does not exist while the key that does exist was unprotected.
+    /// </remarks>
     internal static readonly string[] NeverAMetricDimension =
     [
         "application.id", "correlation.id", "session.id", "causation.id",
-        "message.id", "tenant.id",
+        "message.id", "messaging.message.id", "tenant.id",
     ];
 
     /// <summary>
@@ -179,6 +244,16 @@ internal static class AllowlistRules
             if (string.Equals(key, conditional, StringComparison.Ordinal))
             {
                 return isCouchDbSpan;
+            }
+        }
+
+        // Enumerated before the families, because no family covers these: the
+        // messaging.* prefix is deliberately absent from AllowedFamilies.
+        foreach (var enumerated in AllowedMessagingKeys)
+        {
+            if (string.Equals(key, enumerated, StringComparison.Ordinal))
+            {
+                return true;
             }
         }
 
