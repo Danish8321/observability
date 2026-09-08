@@ -259,6 +259,13 @@ present 'kyc.applications.submitted process' 'the consumer span'
 present 'screening.applications.screened' 'the worker counter'
 present 'screening.duration' 'the worker histogram'
 
+# 🔒 ADR-0005's trace-context metric, which is a control only if it is
+# subscribed — an instrument the provider never registered records in-process
+# and reaches nothing, exactly like the counters above once did. .NET 10 starts
+# W3C, so the value here is 0; the assertion is that the series arrives at all.
+# The value-1 case is the .NET Framework default and needs the Phase 2 fixture.
+present 'raksawi.telemetry.trace_context.corrected' 'the trace-context gauge'
+
 # Declared Class 2 keys, allowed on spans.
 present '"application.id"' 'application.id on a span'
 present '"correlation.id"' 'correlation.id on a span'

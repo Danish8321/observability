@@ -177,7 +177,7 @@ perfect health while dead — Rev 3 **I3.8**, **I3.9**.
 | 4.7 | Query latency | SigNoz's own telemetry | ⚠️ |
 | 4.8 | Backup status, age of last **restored** backup | nothing | ❌ |
 | 4.9 | **Dropped attribute keys, by key** | `raksawi.telemetry.attributes.dropped` | ✅ |
-| 4.10 | W3C format warnings, by service | 🔒 **no metric exists** | ❌ |
+| 4.10 | W3C format warnings, by service | `raksawi.telemetry.trace_context.corrected` | ✅ .NET 10 |
 | 4.11 | Dead man's switch, four states | alerting | ❌ |
 
 **4.3 through 4.7 are one piece of work, not five.** The collector's
@@ -186,15 +186,25 @@ nothing scrapes or forwards it. One `prometheus` receiver pointed at the
 collector's own endpoint, exported down the existing metrics pipeline, lights
 all four.
 
-🔒 **4.10 is a gap in the implementation, not just the dashboard.**
+**4.10 reads a gauge, not a counter.**
 [ADR-0005](../adr/0005-enforcing-the-framework-wiring.md) specifies that the
-startup W3C check "emit a loud warning **and increment a metric**", with the
-explicit reasoning that "a warning in a log on an IIS host is not a control".
-The warning exists (`W3CTraceContextWarning.net10.cs`, and `W3CWarning` on the
-4.8 handle). **The metric does not exist anywhere in `src/`.** The control
-ADR-0005 describes is therefore half-built, on the runtime where silent failure
-is most likely to survive to production. This needs a ticket, not a dashboard
-panel.
+startup W3C check "emit a loud warning **and increment a metric**", reasoning
+that "a warning in a log on an IIS host is not a control". The metric was
+missing entirely until 2026-09-08 and shipped as
+`raksawi.telemetry.trace_context.corrected`, an observable gauge — 1 where the
+format had to be corrected, 0 where it was already W3C. Panel it as a sum or a
+max by `service.name`; every reporting process contributes a point, so a
+non-zero sum is the count of affected services.
+
+Healthy processes report 0 rather than nothing, deliberately: "the check ran
+and the format was fine" and "nothing is reporting" are different answers, and
+4.1 is the panel that answers the second one.
+
+🔒 **Verified on .NET 10 only.** `e2e-instrumented.sh` asserts the series
+reaches the sink, which is what proves the meter is subscribed rather than
+recording in-process. The value-1 case is the .NET Framework default and has no
+fixture yet (ADR-0005's own Phase 2 deferral), so the runtime this panel exists
+for is the runtime it is unproven on.
 
 **4.1 needs the register to exist as a file.**
 [ADR-0021](../adr/0021-service-register-is-the-coverage-denominator.md) makes
@@ -208,7 +218,7 @@ the specific failure it exists to catch
 
 ## What this leaves
 
-Twelve panels of thirty are buildable today, seven more are partial, and eleven
+Thirteen panels of thirty are buildable today, seven more are partial, and ten
 have no data source at all. The gaps name concrete missing pieces, in rough
 order of value per unit of work:
 
@@ -217,7 +227,6 @@ order of value per unit of work:
 | Enumerate `messaging.*` keys in the allowlist | 3.1–3.6 dimensions |
 | `prometheus` receiver on the collector's own endpoint | 4.3, 4.4, 4.5, 4.6 |
 | `prometheus` receiver on NATS `:8222` | 3.2 |
-| W3C warning metric (ADR-0005 as written) | 4.10 |
 | `AddProcessInstrumentation()` | 1.4 |
 | Service register file (ADR-0021) | 4.1 |
 | Tail sampling policy | 2.6 |

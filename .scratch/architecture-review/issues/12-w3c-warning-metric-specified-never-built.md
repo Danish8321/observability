@@ -1,4 +1,5 @@
-Status: open — found 2026-09-08 while building the dashboard guide
+Status: open — metric landed and verified on .NET 10 2026-09-08, awaiting a
+real 4.8 start (Phase 2)
 
 # ADR-0005's W3C warning metric is specified but does not exist
 
@@ -74,5 +75,54 @@ set `Activity.DefaultIdFormat` to `Hierarchical` first.
 That makes this cheapest to verify alongside the Phase 2 4.8 fixture (issue
 11), where the failure is the runtime default rather than something a test has
 to arrange.
+
+## Code landed (2026-09-08)
+
+`TraceContextMetric.cs` — an observable gauge, not the counter this ticket
+proposed. Writing the fix surfaced why: a counter has to be incremented inside
+`EnsureW3CTraceContext()`, which both entry points call **before** the meter
+provider is built, so the measurement would be taken with nothing subscribed
+and reach no store. That is the failure this ticket is about, reproduced inside
+its own fix. A gauge is read at collection time, so the ordering cannot break
+it, and the state holds for the process lifetime rather than only the export
+window containing startup. Recorded in ADR-0005 rather than left here, since
+the ADR's "increment a metric" is what a reader builds a panel against.
+
+Recorded inside `ServiceIdentity.EnsureW3CTraceContext()` rather than at each
+entry point, for the reason the CouchDB policy moved into `RaksawiPipeline`
+(issue 06): both runtimes call it, so the two cannot drift. Registered on the
+provider in `RaksawiPipeline.AddRaksawiIdentity`.
+
+Healthy processes report 0 rather than nothing. "The check ran and the format
+was fine" and "nothing is reporting" are different answers, and panel 4.1 is
+the one that answers the second.
+
+## .NET 10 half verified (2026-09-08)
+
+`test-fast.sh` — 181 passed, including one that builds a real `MeterProvider`
+through `AddRaksawiIdentity` and reads the gauge back off an exporter. A test
+asserting only `TraceContextMetric.Current` would have passed against an
+unregistered meter, which is the whole failure mode.
+
+`e2e-instrumented.sh` — sixteen assertions, including:
+
+```
+  ok      present the trace-context gauge
+```
+
+on telemetry that left a real service and crossed both enforcement points. That
+discharges the "observed at the sink" requirement below, for .NET 10.
+
+## Still open, deliberately
+
+The value is **0** in that run. .NET 10 starts W3C, so the assertion proves the
+series is registered and exported — not that the correction path produces 1
+where it matters. The value-1 case is the .NET Framework default, and this
+ticket is about the runtime where ADR-0005 says silent failure is most likely
+to survive to production.
+
+Closes when a real 4.8 start emits the gauge at 1, which is the same Phase 2
+fixture issue 11 waits on (ADR-0005, deferred by ADR-0022). Verifying one
+runtime and inferring the other is what issue 11 exists to refuse.
 
 ## Comments

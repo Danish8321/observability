@@ -67,9 +67,10 @@ internal static class RaksawiPipeline
     /// Resource and the meters this process may emit.
     /// </summary>
     /// <remarks>
-    /// A meter nothing subscribes to is collected by nothing. Both the
-    /// allowlist's own dropped-key counter and the service's instruments need
-    /// registering, or they increment in-process and reach no store.
+    /// A meter nothing subscribes to is collected by nothing. The allowlist's
+    /// dropped-key counter, the trace-context gauge and the service's own
+    /// instruments all need registering, or they record in-process and reach no
+    /// store.
     /// </remarks>
     internal static MeterProviderBuilder AddRaksawiIdentity(
         this MeterProviderBuilder builder,
@@ -78,6 +79,7 @@ internal static class RaksawiPipeline
         builder
             .SetResourceBuilder(resource)
             .AddMeter(AllowlistDropMetric.MeterName)
+            .AddMeter(TraceContextMetric.MeterName)
             .AddMeter(options.Meters.ToArray());
 
     /// <summary>

@@ -67,6 +67,28 @@ W3C, emit a loud warning and increment a metric. Do **not** throw.
   verification item, checked by observing spans rather than by inspecting
   configuration.
 
+## The metric shipped as a gauge, not a counter (2026-09-08)
+
+The decision above says "increment a metric". It shipped as
+`raksawi.telemetry.trace_context.corrected`, an **observable gauge** reporting 1
+where the format had to be corrected and 0 where it was already W3C. Recorded
+here rather than left as a code comment, because the wording above is what a
+reader would otherwise build a panel against.
+
+A counter would have to be incremented inside `EnsureW3CTraceContext()`, which
+both entry points call *before* the meter provider is constructed. The
+measurement would be taken with nothing subscribed and reach no store — this
+decision's own failure mode, reproduced inside its fix. A gauge is read at
+collection time, so the ordering cannot break it, and the state holds for the
+process lifetime, which makes the panel correct in any time window rather than
+only the one containing startup.
+
+Between 2026-08-10 and 2026-09-08 the metric did not exist at all: the warning
+shipped on both runtimes and the metric on neither, so for that period the
+control this ADR describes was the log line it argues is not a control.
+Verified at the sink on .NET 10 by `e2e-instrumented.sh`; the 4.8 case is
+covered by the Phase 2 deferral below.
+
 ## These rules are specified, not observed
 
 The three failure modes above are taken from the .NET Framework 4.8

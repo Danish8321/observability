@@ -15,8 +15,8 @@ dashboard nobody can read during an incident is decoration.
 Built once, against the demo store, in
 [`onboarding/backend-and-dashboards.md`](./onboarding/backend-and-dashboards.md).
 That document records which of the panels below have a data source today —
-twelve of thirty — and what each of the rest is waiting on. This file stays the
-specification; it does not track build state.
+thirteen of thirty — and what each of the rest is waiting on. This file stays
+the specification; it does not track build state.
 
 ---
 

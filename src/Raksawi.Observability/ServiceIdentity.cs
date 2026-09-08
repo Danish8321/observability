@@ -20,12 +20,21 @@ internal static class ServiceIdentity
     /// what was corrected. Per ADR-0005 this warns and never throws — telemetry
     /// setup must not be able to fail a service start (Rev 3 I3.6).
     /// </returns>
+    /// <remarks>
+    /// The metric is recorded here rather than by each entry point, for the
+    /// reason the CouchDB policy moved into <c>RaksawiPipeline</c>: both
+    /// runtimes call this method, so a shared implementation is the only shape
+    /// the two cannot drift apart in. ADR-0005 is about the runtime where the
+    /// failure is expected, so wiring it on .NET 10 alone would miss the case.
+    /// </remarks>
     public static string? EnsureW3CTraceContext()
     {
         var wasHierarchical = Activity.DefaultIdFormat != ActivityIdFormat.W3C;
 
         Activity.DefaultIdFormat = ActivityIdFormat.W3C;
         Activity.ForceDefaultIdFormat = true;
+
+        TraceContextMetric.Record(wasHierarchical);
 
         return wasHierarchical ? W3CCorrectedMessage : null;
     }
