@@ -9,8 +9,11 @@ after the demo, and the boundary that makes deferring them safe is that
 ## Shape
 
 ```
-service ──OTLP/http─▶ collector ──▶ SigNoz
-          :4318                     (traces, metrics, UI)
+service ──────OTLP/http──────▶ collector ──▶ SigNoz
+               :4318          ▲              (traces, metrics, UI)
+                              │
+NATS ──JSON──▶ nats-exporter ─┘
+     :8222                 scraped :7777
 ```
 
 Two hops rather than one, deliberately. The collector is where the allowlist,
@@ -35,6 +38,28 @@ docker compose up -d
 ```
 
 Then run this collector alongside it, mounting `collector/config.yaml`.
+
+## The NATS scrape
+
+NATS runs none of our code and has no agent, so its health reaches the pipeline
+by scrape or not at all ([ADR-0030](../docs/adr/0030-broker-health-arrives-by-scrape.md)).
+Its `:8222` monitoring endpoint serves **JSON**, not prometheus text, and the
+collector has no NATS receiver — hence `prometheus-nats-exporter` in the compose
+file, translating one into the other on `:7777`.
+
+```sh
+curl -s localhost:7777/metrics | grep gnatsd_varz_slow_consumers
+```
+
+The receiver keeps `gnatsd_(varz|connz|subsz)_*` and `jetstream_*` and drops
+everything else, because the exporter also publishes its own Go runtime and
+those series stored under a job named `nats` read as broker health.
+
+🔒 **This is broker health, not consumer lag.** The reference services use core
+NATS, so there is no stream and no durable consumer; `jetstream_consumer_*` does
+not appear at all. See dashboard 3 in
+[`../docs/onboarding/backend-and-dashboards.md`](../docs/onboarding/backend-and-dashboards.md)
+before panelling any of it as backlog depth.
 
 ## Service configuration
 

@@ -52,6 +52,13 @@ at the collector, never at the store.
 host 4318, so this collector's host mapping moved. Inside the network it is
 still 4318. `Otlp:Endpoint = http://localhost:4319` from the host.
 
+That compose also brings up `nats-exporter`, the one thing here the collector
+*pulls* from rather than receives. NATS runs none of our code and has no agent,
+so its health arrives by scrape or not at all
+([ADR-0030](../adr/0030-broker-health-arrives-by-scrape.md)). A dead exporter is
+silent — the scrape simply fails — so if dashboard 3's broker panels are empty,
+check `curl localhost:7777/metrics` before suspecting the pipeline.
+
 ## Step D3 — prove data is queryable before building anything
 
 Three checks, in this order. Each isolates a different failure; a dashboard
@@ -136,17 +143,24 @@ furthest from existing.
 | # | Panel | Needs | Status |
 |---|---|---|---|
 | 3.1 | Oldest unprocessed message age | nothing emits it | ❌ |
-| 3.2 | Consumer lag / backlog depth | NATS monitoring scrape | ❌ |
+| 3.2 | Consumer lag / backlog depth | `gnatsd_varz_slow_consumers` — a proxy | ⚠️ no lag exists to read |
 | 3.3 | DLQ depth and arrival rate | no DLQ exists | ❌ |
 | 3.4 | Retry count | retries are span events, not a metric | ⚠️ |
 | 3.5 | Processing duration p95/p99 | `screening.duration` | ✅ |
 | 3.6 | What is in the DLQ, by workflow | no DLQ exists | ❌ |
 
-Two separate blockers, and they are not the same work:
+Two blockers, and neither is the one this document used to name. The broker
+scrape landed on 2026-09-08 ([ADR-0030](../adr/0030-broker-health-arrives-by-scrape.md))
+and the data path is no longer what is missing:
 
-1. **The NATS monitoring endpoint is not scraped.** The demo compose exposes it
-   (`nats -m 8222`), but the collector has no `prometheus` receiver, so 3.2
-   has no data path at all.
+1. **The reference services use core NATS, so there is no lag to read.**
+   `ScreeningConsumer.cs` subscribes with `nats.SubscribeAsync` — core pub/sub,
+   no stream, no durable consumer, no backlog. A scrape of the running demo
+   returns `jetstream_server_total_streams 0` and no `jetstream_consumer_*`
+   series at all. 3.1, 3.2, 3.3 and 3.6 all describe a queue, and the sample
+   does not have one. Closing them means moving the sample to JetStream, which
+   changes what it demonstrates ([ADR-0022](../adr/0022-demo-first-resequencing.md)
+   made core NATS a deliberate demo choice).
 2. **The reference service has no DLQ.** `samples/` retries three times and
    abandons, incrementing `screening.applications.abandoned`. That counter is a
    genuine signal — build it as an abandonment-rate panel — but it is not DLQ
@@ -163,6 +177,20 @@ keys, exact-match, `messaging.consumer.group.name` admitted ahead of use
 precisely so this dashboard is not blocked on an allowlist review when the
 instrumentation arrives. What is missing is the instrumentation, not the
 permission.
+
+**What the scrape does deliver, and what it must not be panelled as.**
+`prometheus-nats-exporter` translates NATS's JSON monitoring endpoint into
+prometheus text — `:8222` is not a prometheus endpoint and the collector has no
+NATS receiver, so there is no configuration of the collector alone that reads
+it. Through it arrive connection and subscription counts, in/out bytes and
+messages, `gnatsd_connz_pending_bytes` and `gnatsd_varz_slow_consumers`.
+
+`gnatsd_varz_slow_consumers` is the honest core-NATS answer to "is the consumer
+falling behind": it counts connections the server *disconnected* for not keeping
+up. It is not lag. Lag is messages waiting; a slow-consumer count is subscribers
+already dropped, after the data is gone. Panel it as 3.2 and the twenty-minute
+backlog D3.6 describes reads as a flat zero — the same substitution refused
+above for DLQ depth against `screening.applications.abandoned`.
 
 3.4 is answerable from span events today (`samples/README.md`, retry-as-event)
 but not as a metric, so it is a trace query rather than a panel.
@@ -226,18 +254,17 @@ the specific failure it exists to catch
 
 ## What this leaves
 
-Thirteen panels of thirty are buildable today, seven more are partial, and ten
+Thirteen panels of thirty are buildable today, eight more are partial, and nine
 have no data source at all. The gaps name concrete missing pieces, in rough
 order of value per unit of work:
 
 | Work | Unblocks |
 |---|---|
 | `prometheus` receiver on the collector's own endpoint | 4.3, 4.4, 4.5, 4.6 |
-| `prometheus` receiver on NATS `:8222` | 3.2 |
 | `AddProcessInstrumentation()` | 1.4 |
 | Service register file (ADR-0021) | 4.1 |
 | Tail sampling policy | 2.6 |
-| Consumer lag / DLQ instrumentation in the sample | 3.1, 3.3, 3.6 |
+| Move the sample to JetStream, with a DLQ | 3.1, 3.2, 3.3, 3.6 |
 | Synthetic probe, alerting, backup restore check | 4.2, 4.8, 4.11 |
 
 **Replay produces duplicates.** Every panel above derived from span counts

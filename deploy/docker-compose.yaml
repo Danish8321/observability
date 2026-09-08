@@ -13,6 +13,18 @@ services:
       - "4222:4222"
       - "8222:8222"   # monitoring endpoint — also an estate discovery source
 
+  # NATS speaks JSON on :8222 (/varz, /connz, /jsz), not prometheus text, and
+  # the collector has no NATS receiver. This is the NATS project's own exporter
+  # translating one into the other so the collector can scrape it — the only
+  # route from broker health into the pipeline (ADR-0030).
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.17.3
+    command: ["-varz", "-connz", "-subz", "-jsz=all", "http://nats:8222"]
+    ports:
+      - "7777:7777"   # exposed for `curl` while building panels, not required
+    depends_on:
+      - nats
+
   couchdb:
     image: couchdb:3.5
     environment:

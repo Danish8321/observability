@@ -30,6 +30,8 @@ SINK=signoz-ingester-1
 SUT=raksawi-e2e-svc-collector
 COUCH=couchdb
 NATSC=nats
+# The DNS name the prometheus receiver's scrape target is written against.
+NATSEXP=nats-exporter
 API=raksawi-e2e-api
 WORKER=raksawi-e2e-worker
 COUCH_PORT=15984
@@ -54,7 +56,7 @@ out_dir="$(mktemp -d)"
 received="$out_dir/received.json"
 
 purge() {
-    docker rm -f "$API" "$WORKER" "$SUT" "$SINK" "$COUCH" "$NATSC" >/dev/null 2>&1 || true
+    docker rm -f "$API" "$WORKER" "$SUT" "$SINK" "$COUCH" "$NATSC" "$NATSEXP" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
     docker volume rm "$QUEUE_VOL" "$OUT_VOL" >/dev/null 2>&1 || true
 }
@@ -102,6 +104,14 @@ docker run -d --name "$COUCH" --network "$NET" \
 
 docker run -d --name "$NATSC" --network "$NET" \
     nats:2.12-alpine -js -m 8222 >/dev/null
+
+# The broker runs none of our code and cannot be instrumented, so its health
+# reaches the pipeline by scrape or not at all (ADR-0030). Started here rather
+# than assumed, because the collector config under test names it as a target:
+# without it the scrape fails and the pipeline is silently short one source.
+docker run -d --name "$NATSEXP" --network "$NET" \
+    natsio/prometheus-nats-exporter:0.17.3 \
+    -varz -connz -subz -jsz=all "http://$NATSC:8222" >/dev/null
 
 MSYS_NO_PATHCONV=1 docker run -d --name "$SINK" --network "$NET" \
     -v "$(pwd)/.claude/scripts/e2e/sink-config.yaml":/etc/otelcol/config.yaml:ro \
@@ -203,10 +213,12 @@ echo "== waiting for telemetry to reach the sink =="
 i=0
 dump_received
 while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
-    || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null; do
+    || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null \
+    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 120 ]; then
-        echo "e2e-instrumented.sh: the worker metric or log never arrived." >&2
+        echo "e2e-instrumented.sh: the worker metric, log or NATS scrape never arrived." >&2
+        echo "--- nats-exporter ---" >&2; docker logs "$NATSEXP" >&2 || true
         echo "--- api ---" >&2; docker logs "$API" >&2 || true
         echo "--- worker ---" >&2; docker logs "$WORKER" >&2 || true
         echo "--- collector ---" >&2; docker logs "$SUT" >&2 || true
@@ -333,6 +345,30 @@ if echo "$logline" | grep -q '"Outcome"'; then
 else
     echo "  ok      absent  an undeclared log property"
 fi
+
+# 🔒 The NATS scrape (ADR-0030). Broker health cannot come from instrumentation
+# — nothing of ours runs in NATS — so this proves the one path it does have.
+present 'gnatsd_varz_connections' 'a NATS broker series from the scrape'
+present 'gnatsd_varz_slow_consumers' 'the core-NATS falling-behind signal'
+
+# 🔒 The exporter publishes its own Go runtime next to the broker's health.
+# Stored under a job named "nats" those read as broker health, which inverts
+# the exact failure dashboard 3 exists to catch.
+absent 'go_memstats_heap_alloc_bytes' "the exporter's own Go runtime"
+absent 'promhttp_metric_handler_requests' "the exporter's own scrape counters"
+
+# The mapping, scoped to a scraped datapoint: messaging.system is legitimately
+# present on the spans above, so a whole-file grep would prove nothing.
+if grep 'gnatsd_varz_connections' "$received" | grep -q '"messaging.system"'; then
+    echo "  ok      present messaging.system mapped onto the NATS scrape"
+else
+    echo "  FAILED  missing messaging.system on the NATS scrape" >&2
+    failed=1
+fi
+
+# server_id restates the scrape URL on every series and is dropped at the
+# receiver. It is also the only label carrying a URL, so a leak is visible.
+absent '"http://nats:8222"' 'the scrape URL as a datapoint label'
 
 # Carve-outs, on real HTTP spans this time. CouchDB is reached with a Basic
 # credential, so the header carve-out is doing real work here.

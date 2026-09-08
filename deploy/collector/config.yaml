@@ -16,6 +16,35 @@ receivers:
         # that cannot work everywhere.
         endpoint: 0.0.0.0:4318
 
+  # 🔒 The only non-OTLP source here, and the only one describing a component
+  # that runs none of our code and cannot be instrumented (ADR-0030). NATS
+  # serves JSON on :8222, so prometheus-nats-exporter translates it and this
+  # scrapes the translation.
+  prometheus/nats:
+    config:
+      scrape_configs:
+        - job_name: nats
+          scrape_interval: 15s
+          static_configs:
+            - targets: [nats-exporter:7777]
+          metric_relabel_configs:
+            # Default deny by metric name, the same shape as the attribute
+            # allowlist below. The exporter also publishes its own go_*,
+            # process_* and promhttp_* runtime, which describes the exporter
+            # rather than the broker and would be read as broker health.
+            - source_labels: [__name__]
+              regex: 'gnatsd_(varz|connz|subsz)_.*|jetstream_.*'
+              action: keep
+            # Info gauges: the value is always 1 and the payload is a label.
+            # Useless as a series, and the label is unbounded-looking.
+            - source_labels: [__name__]
+              regex: '.*_(server_id|server_name|version)'
+              action: drop
+            # The scrape URL, restated on every single series.
+            # service.instance.id already carries it.
+            - regex: 'server_id'
+              action: labeldrop
+
 processors:
   batch:
     timeout: 5s
@@ -28,6 +57,24 @@ processors:
 
   # Rev 3 I3.6: telemetry must never participate in business request success.
   # The collector holds data rather than pushing back on producers.
+
+  # Scrapes arrive with no messaging semconv on them at all — prometheus label
+  # names cannot contain dots, so this cannot be done with metric_relabel_configs
+  # and has to happen here. It runs BEFORE the allowlist, not after: a mapping
+  # downstream of the allowlist would be a fourth way to introduce an attribute
+  # nothing had governed. messaging.system is an enumerated allowlist key, so
+  # what this writes is admitted by the same rule that admits it on a span.
+  #
+  # 🔒 Nothing maps stream or consumer names, deliberately. The exporter emits
+  # no such labels against the reference services, which use core NATS: writing
+  # a mapping for labels no dump has ever shown would be a rule tightened
+  # against the specification instead of against real data (ADR-0018).
+  transform/nats:
+    error_mode: propagate
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(datapoint.attributes["messaging.system"], "nats")
 
   # 🔒 The allowlist. Deny by carve-out, then keep by family — the keep is last
   # so anything not named is gone by default (ADR-0003, ADR-0018).
@@ -169,6 +216,15 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]
+      exporters: [otlp/signoz]
+    # 🔒 Its own pipeline rather than a second receiver on the one above, so the
+    # NATS-only mapping cannot touch a service's metrics. transform/allowlist is
+    # still in it: a pipeline that skips the allowlist is the drift this repo
+    # exists to prevent, and CollectorAllowlistContractTests asserts that EVERY
+    # pipeline here contains it, not the three that existed when it was written.
+    metrics/nats:
+      receivers: [prometheus/nats]
+      processors: [memory_limiter, transform/nats, transform/allowlist, resource, batch]
       exporters: [otlp/signoz]
     logs:
       receivers: [otlp]

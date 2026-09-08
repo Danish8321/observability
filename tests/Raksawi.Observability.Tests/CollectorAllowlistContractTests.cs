@@ -137,17 +137,57 @@ public sealed class CollectorAllowlistContractTests
     }
 
     [Fact]
-    public void Every_signal_is_filtered_before_it_reaches_the_exporter()
+    public void Every_pipeline_is_filtered_before_it_reaches_the_exporter()
     {
         // A signal with no pipeline is not exported at all, which is loud. A
         // pipeline that skips transform/allowlist is silent, and is the one
         // this catches.
-        foreach (var signal in new[] { "traces", "metrics", "logs" })
-        {
-            var pipeline = Section("    " + signal + ":", "exporters: [otlp/signoz]");
+        //
+        // 🔒 Enumerated from the config rather than from a list of the three
+        // signals, because a NEW pipeline is exactly the way an unfiltered path
+        // gets added — the reason this reads the file instead of naming names.
+        var pipelines = Pipelines();
 
-            Assert.Contains("transform/allowlist", pipeline);
-        }
+        Assert.Contains(pipelines, pipeline => pipeline.Name == "traces");
+        Assert.Contains(pipelines, pipeline => pipeline.Name == "metrics");
+        Assert.Contains(pipelines, pipeline => pipeline.Name == "logs");
+
+        Assert.All(pipelines, pipeline =>
+            Assert.Contains("transform/allowlist", pipeline.Body));
+    }
+
+    [Fact]
+    public void The_nats_scrape_is_confined_to_its_own_pipeline()
+    {
+        // transform/nats sets messaging.system unconditionally, which is right
+        // for a broker scrape and wrong for anything else. Its blast radius is
+        // whichever pipelines reference it.
+        var carrying = Pipelines()
+            .Where(pipeline => pipeline.Body.Contains("transform/nats", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Single(carrying);
+        Assert.Equal("metrics/nats", carrying[0].Name);
+        Assert.Contains("prometheus/nats", carrying[0].Body);
+    }
+
+    [Fact]
+    public void The_nats_scrape_keeps_broker_series_and_drops_the_exporters_own()
+    {
+        // The exporter publishes its own go_*, process_* and promhttp_* runtime
+        // alongside the broker's. Storing those under a job named "nats" makes
+        // exporter health read as broker health, which is the failure dashboard
+        // 3 exists to catch, inverted.
+        // Comments stripped: this asserts on what the collector reads, and the
+        // prose above the config names the very series it excludes.
+        var scrape = string.Join('\n', Section("prometheus/nats:", "processors:")
+            .Split('\n')
+            .Where(line => !line.TrimStart().StartsWith('#')));
+
+        Assert.Contains("action: keep", scrape);
+        Assert.Contains("gnatsd_", scrape);
+        Assert.DoesNotContain("go_memstats", scrape);
+        Assert.DoesNotContain("promhttp_", scrape);
     }
 
     [Theory]
@@ -246,6 +286,48 @@ public sealed class CollectorAllowlistContractTests
         Section("log_statements", "  resource:").Split('\n')
             .Where(line => line.Contains(containing, StringComparison.Ordinal)
                 && !line.Contains("resource.attributes", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Every pipeline under service.pipelines, discovered rather than named.
+    /// </summary>
+    private static (string Name, string Body)[] Pipelines()
+    {
+        var block = Section("  pipelines:", "  telemetry:").Split('\n');
+        var found = new List<(string, string)>();
+        var name = string.Empty;
+        var body = new System.Text.StringBuilder();
+
+        // Pipeline headers sit at exactly four spaces; their contents are
+        // deeper. Anything shallower has ended the block.
+        foreach (var line in block.Skip(1))
+        {
+            var isHeader = line.StartsWith("    ", StringComparison.Ordinal)
+                && !line.StartsWith("     ", StringComparison.Ordinal)
+                && line.TrimEnd().EndsWith(':');
+
+            if (isHeader)
+            {
+                if (name.Length > 0)
+                {
+                    found.Add((name, body.ToString()));
+                }
+
+                name = line.Trim().TrimEnd(':');
+                body.Clear();
+            }
+            else
+            {
+                body.AppendLine(line);
+            }
+        }
+
+        if (name.Length > 0)
+        {
+            found.Add((name, body.ToString()));
+        }
+
+        return [.. found];
+    }
 
     /// <summary>The configuration between two markers, exclusive of the second.</summary>
     private static string Section(string from, string to)
