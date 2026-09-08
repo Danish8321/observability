@@ -25,6 +25,12 @@ Not "the package is referenced". You are done when all six hold:
 
 The last one is the actual deliverable. Span count is not.
 
+Those six are per-service and end at "the data is queryable". The estate-level
+half — standing the store up and building the four dashboards that make the
+data *readable during an incident* — is
+[`backend-and-dashboards.md`](./backend-and-dashboards.md), which picks up
+where A12 leaves off.
+
 ---
 
 ## Step 0 — pick your path
@@ -388,6 +394,12 @@ log property you expect. A dropped key is silent by design, and the
 dropped-key metric (`attribute.key`, `telemetry.signal`) is where it shows
 up.
 
+Emitting is not the end of the route. Continue at
+[`backend-and-dashboards.md`](./backend-and-dashboards.md), which stands the
+store up and builds the four dashboards from
+[`../diagnostic-queries.md`](../diagnostic-queries.md) — and says which panels
+cannot be built yet, and why.
+
 ---
 
 ## Part B — .NET Framework 4.8, SDK path
@@ -507,6 +519,11 @@ Anything policy or allowlist related: [`docs/allowlist.md`](../allowlist.md),
 then ADR-0002 / 0003 / 0017 / 0018 / 0025 / 0026 / 0028.
 
 ## Next
+
+[`backend-and-dashboards.md`](./backend-and-dashboards.md) continues the route
+past A12: SigNoz up, the collector alongside it, then the four dashboards built
+from [`../diagnostic-queries.md`](../diagnostic-queries.md) — including an
+honest account of which panels have no data source yet.
 
 `samples/README.md` explains *why* each pattern above exists, and the
 Screening service runs the whole flow — `POST /applications` to

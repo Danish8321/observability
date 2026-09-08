@@ -66,6 +66,10 @@ a silently wrong sampling rate is not detectable from the data (ADR-0010).
 
 `docs/onboarding/integrating-a-service.md` is the step-by-step version,
 zero to verified, for all three runtime paths.
+`docs/onboarding/backend-and-dashboards.md` continues it to the other end —
+store, collector, and the four dashboards built from
+`docs/diagnostic-queries.md`, with the panels that have no data source yet
+named rather than quietly skipped.
 
 **.NET Framework 4.8, SDK path** — a package reference plus three touchpoints the
 library cannot reach from inside: W3C forcing as the first statements of

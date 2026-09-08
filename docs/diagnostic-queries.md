@@ -12,6 +12,12 @@ artifact seen from two directions.
 **Four dashboards, no more** — Rev 3 **I4.3**. The constraint is deliberate: a
 dashboard nobody can read during an incident is decoration.
 
+Built once, against the demo store, in
+[`onboarding/backend-and-dashboards.md`](./onboarding/backend-and-dashboards.md).
+That document records which of the panels below have a data source today —
+twelve of thirty — and what each of the rest is waiting on. This file stays the
+specification; it does not track build state.
+
 ---
 
 ## 1. Service golden signals
