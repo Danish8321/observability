@@ -35,6 +35,7 @@ silently.
 | [0026](./0026-resource-attributes-are-allowlisted-narrowly.md) | Resource attributes are allowlisted, on a narrower family set than spans | Accepted — extends 0018, closes an 0009 gap |
 | [0027](./0027-d02-baseline-has-no-data-source.md) | D0.2's Run 0 has no data source — no baseline to take, ever | Accepted — deviates from Rev 3 |
 | [0028](./0028-logs-are-enforced-in-process-on-net10-only.md) | Logs allowlisted in-process on .NET 10, at the collector only on 4.8 | Accepted — completes 0003 for logs, deviates from Rev 3 on 4.8 |
+| [0029](./0029-net48-deferred-out-of-the-build.md) | .NET Framework 4.8 deferred entirely — out of the build, not merely unvalidated | Accepted — reverses 0012, deviates from Rev 3 |
 
 ## Deviations from Rev 3
 
@@ -61,10 +62,15 @@ are the places this repository knowingly differs, each argued in its own ADR:
   where **I3.2** asks for source-side filtering everywhere. A logger provider on
   4.8 would mean assuming `Microsoft.Extensions.Logging` in services that may not
   use it; the collector stands alone there until Phase 2.
+- **0029** — 4.8 leaves the build entirely until .NET 10 is verified end to end,
+  where Rev 3 sequences the estate's .NET Framework services as in-scope rather
+  than behind a runtime gate. **F-I5** calls them the highest-risk services in
+  the estate, and this extends the period in which they have no library-side
+  control. Sequencing, not scope: 0005, 0012 and 0028 are unamended and waiting.
 
 ## Grouping
 
-**Package shape** — 0001, 0011, 0012, 0017
+**Package shape** — 0001, 0011, 0012, 0017, 0029
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
 0026, 0028
 **Telemetry schema** — 0006, 0007, 0008

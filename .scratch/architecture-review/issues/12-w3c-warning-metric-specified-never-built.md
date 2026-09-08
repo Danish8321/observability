@@ -1,5 +1,6 @@
-Status: open — metric landed and verified on .NET 10 2026-09-08, awaiting a
-real 4.8 start (Phase 2)
+Status: blocked — metric landed and verified on .NET 10 2026-09-08. 4.8 deferred
+out of the build the same day (ADR-0029), so the value-1 case cannot be reached
+until that decision is reversed.
 
 # ADR-0005's W3C warning metric is specified but does not exist
 
@@ -124,5 +125,11 @@ to survive to production.
 Closes when a real 4.8 start emits the gauge at 1, which is the same Phase 2
 fixture issue 11 waits on (ADR-0005, deferred by ADR-0022). Verifying one
 runtime and inferring the other is what issue 11 exists to refuse.
+
+**Blocked by ADR-0029 (2026-09-08).** 4.8 left the build, so there is no runtime
+on which the value can be 1 and nothing to verify against. The metric itself is
+unaffected: it is recorded in `ServiceIdentity.EnsureW3CTraceContext()`, which
+is shared compilation, so a restored 4.8 target gets it without further wiring.
+That is the one part of this ticket the deferral does not put at risk.
 
 ## Comments

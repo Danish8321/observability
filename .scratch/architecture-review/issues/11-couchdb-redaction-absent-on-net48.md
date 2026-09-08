@@ -1,4 +1,6 @@
-Status: open — .NET 10 half verified 2026-09-07, awaiting a real 4.8 span (Phase 2)
+Status: blocked — .NET 10 half verified 2026-09-07. 4.8 deferred out of the
+build entirely on 2026-09-08 (ADR-0029), so this cannot be worked until that
+decision is reversed. The code below is no longer compiled by anything.
 
 # CouchDB URL redaction and changes-feed filtering are absent on the .NET Framework 4.8 path
 
@@ -135,5 +137,16 @@ The services in that script also had to reach CouchDB by container name:
 the collector keeps `url.full` only when `server.address` is the CouchDB host,
 so a run against `localhost` would have had the key dropped by the collector
 and the assertion would have proved nothing about the library.
+
+## Blocked by ADR-0029 (2026-09-08)
+
+4.8 left the build. `check.sh` no longer compiles the fix recorded above, so the
+one guarantee this ticket did have — that the netfx hook names are right,
+confirmed by compiling — stops being re-checked on every build. The code is
+behind `#if NETFRAMEWORK` and is now a record of what was written rather than
+working code.
+
+Nothing about the analysis changes. The verification requirement is unchanged
+and unmet, and 4.8 resuming is the event that unblocks it.
 
 ## Comments

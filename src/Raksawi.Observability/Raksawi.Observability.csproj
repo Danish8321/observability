@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-targeted from the first commit, per ADR-0012. The net48 target is
-         built and unvalidated until Phase 2; ADR-0022 defers 4.8 work past the demo. -->
-    <TargetFrameworks>net48;net10.0</TargetFrameworks>
+    <!-- net10.0 only. ADR-0029 reverses ADR-0012's multi-target: 4.8 is deferred
+         entirely until .NET 10 is complete and verified end to end. The net48
+         sources remain in the tree behind #if NETFRAMEWORK and are not compiled
+         by anything — see ADR-0029 for what that costs. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <RootNamespace>Raksawi.Observability</RootNamespace>
   </PropertyGroup>
 
@@ -19,9 +21,15 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="$(OpenTelemetryVersion)" />
   </ItemGroup>
 
+  <!-- The net48 condition is kept, empty of nothing and referencing nothing,
+       because it is the list 4.8 comes back through: OpenTelemetry.Instrumentation.AspNet
+       (1.12.0-beta.1 when it was last built) and a System.Web reference. Restoring
+       the target framework above without restoring these two produces a build
+       error rather than a silent gap, which is the point of leaving it here.
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNet" Version="1.12.0-beta.1" />
     <Reference Include="System.Web" />
   </ItemGroup>
+  -->
 
 </Project>

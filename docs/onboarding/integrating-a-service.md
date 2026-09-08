@@ -38,12 +38,21 @@ where A12 leaves off.
 | You are | Path | What you write |
 |---|---|---|
 | .NET 10, `IHostApplicationBuilder` | **A** | One call. [Part A](#part-a--net-10) |
-| .NET Framework 4.8, can change code | **B** | One call plus three touchpoints the library cannot reach from inside. [Part B](#part-b--net-framework-48-sdk-path) |
+| .NET Framework 4.8, can change code | **B** | 🔒 **Not available** — see below. [Part B](#part-b--net-framework-48-sdk-path) |
 | .NET Framework 4.8, cannot change code | **C** | Nothing. Infra installs an agent. [Part C](#part-c--net-framework-48-agent-path) |
 
-Ask your platform contact if unsure. Paths B and C are **not
-interchangeable** — B gives you two of the three enforcement points, C gives
-you one.
+🔒 **Path B is closed as of 2026-09-08.** The packages target `net10.0` only —
+[ADR-0029](../adr/0029-net48-deferred-out-of-the-build.md) defers 4.8 entirely
+until .NET 10 is complete and verified end to end. There is no `net48` assembly
+to reference, so a 4.8 service that can change its code still cannot take the
+SDK path today. Part B is kept below as the specification 4.8 resumes against,
+not as instructions you can follow now.
+
+A 4.8 service that needs telemetry before then takes **path C**, which needs no
+package: governance is applied at the collector alone, fail-closed
+([ADR-0009](../adr/0009-governing-agent-instrumented-services.md)). That is one
+enforcement point rather than three — the trade is stated in Part C, and it is
+the current posture for every 4.8 service in the estate.
 
 Before you start, know two values: your `service.name` and
 `service.namespace`. Bare, kebab-case, never a hostname, container name, or
@@ -404,6 +413,12 @@ cannot be built yet, and why.
 
 ## Part B — .NET Framework 4.8, SDK path
 
+🔒 **Unavailable. Specification only.** The packages target `net10.0` alone
+since [ADR-0029](../adr/0029-net48-deferred-out-of-the-build.md), so nothing
+below can be referenced or built today. It is retained because it is what 4.8
+resumes against, and because the failure modes it names are the reason 4.8 is
+sequenced the way it is. Use **path C** in the meantime.
+
 Everything in Part A about conventions, correlation, the policy layer and
 the analyzer applies unchanged. The wiring differs, and **logs differ**.
 
@@ -453,11 +468,13 @@ nothing filters them before they leave the process
 stated deviation from Rev 3 I3.2). Property naming from A8 still applies;
 you just find out later.
 
-**This path is unvalidated until Phase 2**
+**This path is unvalidated and now unbuilt**
 ([ADR-0005](../adr/0005-enforcing-the-framework-wiring.md), deferred by
-[ADR-0022](../adr/0022-demo-first-resequencing.md)) — the documented 4.8
-failure modes are not yet reproduced against a fixture, and CouchDB
-redaction is verified on .NET 10 only. Treat it as provisional.
+[ADR-0022](../adr/0022-demo-first-resequencing.md), then out of the build by
+[ADR-0029](../adr/0029-net48-deferred-out-of-the-build.md)) — the documented
+4.8 failure modes are not reproduced against a fixture, CouchDB redaction is
+verified on .NET 10 only, and the code above is no longer compiled by anything.
+Expect it to need repair rather than review when 4.8 resumes.
 
 ---
 

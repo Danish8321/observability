@@ -200,11 +200,13 @@ Healthy processes report 0 rather than nothing, deliberately: "the check ran
 and the format was fine" and "nothing is reporting" are different answers, and
 4.1 is the panel that answers the second one.
 
-🔒 **Verified on .NET 10 only.** `e2e-instrumented.sh` asserts the series
-reaches the sink, which is what proves the meter is subscribed rather than
-recording in-process. The value-1 case is the .NET Framework default and has no
-fixture yet (ADR-0005's own Phase 2 deferral), so the runtime this panel exists
-for is the runtime it is unproven on.
+🔒 **Verified on .NET 10 only, and that is now the only runtime.**
+`e2e-instrumented.sh` asserts the series reaches the sink, which is what proves
+the meter is subscribed rather than recording in-process. The value-1 case is
+the .NET Framework default, and 4.8 left the build entirely on 2026-09-08
+([ADR-0029](../adr/0029-net48-deferred-out-of-the-build.md)) — so this panel
+will read 0 across the estate until 4.8 resumes, and a 0 there means "no 4.8
+service is reporting", not "no 4.8 service has a split trace".
 
 **4.1 needs the register to exist as a file.**
 [ADR-0021](../adr/0021-service-register-is-the-coverage-denominator.md) makes

@@ -21,8 +21,8 @@ silently.
 
 | Artifact | Consumed by | Target |
 |---|---|---|
-| `Raksawi.Observability` | any estate service | `net48;net10.0` |
-| `Raksawi.Observability.Kyc` | KYC services | `net48;net10.0` |
+| `Raksawi.Observability` | any estate service | `net10.0` (ADR-0029) |
+| `Raksawi.Observability.Kyc` | KYC services | `net10.0` (ADR-0029) |
 | `Raksawi.Observability.Analyzers` | build only, `PrivateAssets="all"` | `netstandard2.0` (Roslyn) |
 | Collector configuration | platform deployment | PR-gated, `otelcol validate` in CI |
 | Diagnostic query specifications | dashboards and runbooks | store-neutral |
@@ -126,9 +126,18 @@ Governance is written first; code follows evidence.
    environment, the bake-off.
 5. **Phase 3 onward** — hardening, PII audit, failure matrix, production.
 
-Both packages multi-target `net48;net10.0` from the first commit even though
-.NET 10 is worked first. The `net48` build failing is the cheapest available test
-of a constraint that is expensive to retrofit.
+Both packages multi-targeted `net48;net10.0` from the first commit, on the
+argument that the `net48` build failing is the cheapest available test of a
+constraint expensive to retrofit (ADR-0012).
+
+**That was reversed on 2026-09-08 (ADR-0029): 4.8 is deferred entirely, out of
+the build rather than merely unvalidated,** until .NET 10 is complete and
+verified end to end — a service integrated, telemetry surviving both
+enforcement points, and the four dashboards built against real data. The target
+carried the appearance of 4.8 progress while everything that actually closes a
+4.8 gap needs a running 4.8 process, which does not exist. The retrofit cost
+ADR-0012 named is accepted rather than disputed, and the net48 sources stay in
+the tree, uncompiled, behind `#if NETFRAMEWORK`.
 
 ## Verification
 
@@ -194,8 +203,8 @@ docs/phase3/                  store bake-off criteria, failure matrix
 ## Current state
 
 Code exists and builds: `Raksawi.Observability`, `Raksawi.Observability.Kyc`,
-the `Screening` sample (API, domain, worker), and unit tests, all on
-`net48;net10.0` except the sample (`net10.0` only). Twenty-five ADRs, a
+the `Screening` sample (API, domain, worker), and unit tests, all on `net10.0`
+only since ADR-0029 deferred 4.8 out of the build. Twenty-nine ADRs, a
 glossary, and five Phase 0 worksheets whose data has **not** been collected —
 that data, not more code, is the current bottleneck.
 

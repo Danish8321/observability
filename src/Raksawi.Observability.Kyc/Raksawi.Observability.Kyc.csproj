@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-targeted like the mechanism package (ADR-0012). The KYC estate
-         includes .NET Framework services and the policy layer must reach them. -->
-    <TargetFrameworks>net48;net10.0</TargetFrameworks>
+    <!-- net10.0 only, following the mechanism package (ADR-0029). The KYC estate
+         does include .NET Framework services and the policy layer will have to
+         reach them; that is deferred, not cancelled. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <RootNamespace>Raksawi.Observability.Kyc</RootNamespace>
   </PropertyGroup>
 
