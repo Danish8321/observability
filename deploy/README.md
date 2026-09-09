@@ -74,6 +74,14 @@ monitoring system that lies
 `otelcol_exporter_send_failed_spans_total` and `otelcol_process_memory_rss_bytes`
 are the four that matter.
 
+🔒 **`send_failed` is not the failure signal it reads as.** It increments when an
+attempt *resolves*, and with `retry_on_failure` enabled a failing export never
+resolves — during a store outage the sent and failed series are both absent. Use
+the queue rising while `sent` is flat, and the gap between `accepted` and `sent`.
+
+`up` is the one that says a scrape target died: 1 reachable, 0 not, per job, and
+it survives both scrape jobs' metric filters.
+
 🔒 **None of it detects the collector being dead.** A dead collector stops
 scraping itself and the series simply stop, which looks identical to a quiet
 period. That needs alerting, not a panel, and it is not built.

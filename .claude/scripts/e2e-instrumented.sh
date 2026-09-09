@@ -386,6 +386,13 @@ present 'otelcol_process_memory_rss_bytes' 'collector memory'
 absent 'http_server_request_duration' "the receiver's own HTTP server metrics"
 absent 'rpc_client_duration' "the exporter's own gRPC client metrics"
 
+# 🔒 up is synthesised per scrape target — 1 reachable, 0 not. It is NOT subject
+# to metric_relabel_configs, so both keeps above let it through, and it is the
+# only signal that says a scrape target died rather than went quiet. Verified
+# here because it is load-bearing for the dead-target half of I3.9 and it is
+# not obvious from either scrape job's configuration that it survives them.
+present '"name":"up"' 'the per-target scrape health series'
+
 # Carve-outs, on real HTTP spans this time. CouchDB is reached with a Basic
 # credential, so the header carve-out is doing real work here.
 absent '"http.request.header.authorization"' 'the Authorization header'

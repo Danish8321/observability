@@ -234,10 +234,26 @@ than being unwired:
 
 4.7 is unaffected: it reads SigNoz's own telemetry, not the collector's.
 
-🔒 **None of this detects the collector being dead.** A dead collector stops
-scraping itself; the series just stop, and absence looks identical to a quiet
-period. That is 4.11's job, it needs alerting rather than a panel, and it is
-still unbuilt.
+🔒 **4.5 reads zero during exactly the outage it is for.**
+`otelcol_exporter_send_failed_spans_total` increments when an export attempt
+*resolves*. `retry_on_failure` is enabled, correctly, so a failing export never
+resolves — it retries with backoff indefinitely, and the sent/failed series do
+not appear at all. Verified on a running collector, both ways. Read 4.5 with 4.4:
+the queue rising while `sent` is flat is the outage, and the gap between
+`otelcol_receiver_accepted_spans_total` and sent is the most direct statement of
+it. Detail in `.scratch/dashboard-buildout/issues/07`.
+
+**Scrape targets say when they die.** `up` is synthesised per target — 1
+reachable, 0 not — and is not subject to `metric_relabel_configs`, so it
+survives both scrape jobs' keeps and reaches the store. `up{job="nats"} 0` is a
+dead exporter; `up{job="otelcol"} 0` is a broken self-scrape. Neither is
+obvious from reading the scrape configuration, so `e2e-instrumented.sh` asserts
+it.
+
+🔒 **None of this detects the collector being dead.** A dead collector
+synthesises no `up` and stops scraping itself; the series just stop, and absence
+looks identical to a quiet period. That is 4.11's job, it needs alerting rather
+than a panel, and it is still unbuilt.
 
 **4.10 reads a gauge, not a counter.**
 [ADR-0005](../adr/0005-enforcing-the-framework-wiring.md) specifies that the
