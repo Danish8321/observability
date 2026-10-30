@@ -6,17 +6,27 @@ implementation detail, no plans, no decisions. Decisions live in
 
 ## Layers
 
-**Mechanism layer** — the part of the library that knows how telemetry is
-produced and shipped, and nothing about any business domain. Resource schema,
-protocol, exporter safety, sampler defaults, instrumentation wiring, the
-analyzer's rule engine. Reusable by any service in the estate.
+**Core** — the package that knows how telemetry is produced and shipped, and
+nothing about any business domain or any specific broker or database. Reusable
+by any service, in this estate or outside it.
+_Avoid_: mechanism layer
 
-**Policy layer** — the part that encodes what a specific business domain is
-allowed to say. Attribute allowlist, redaction rules, governed helpers, the
-Class 2 identifiers of that domain. Depends on the mechanism layer.
+**Integration package** — knowledge of one technology that core deliberately
+leaves out, such as a message broker or a database. A service references only
+the integrations it actually uses.
 
-**Policy pack** — one shipped instance of the policy layer, scoped to a domain.
-A service references the packs its domain requires.
+**Compliance add-on** — the package that decides what a service may export:
+the allowlist, data classes and their enforcement. Optional for core, required
+for any service handling regulated data.
+_Avoid_: policy layer
+
+**Vocabulary pack** — one domain's declared attribute keys and governed
+helpers, scoped to that domain. Depends on the compliance add-on.
+_Avoid_: policy pack
+
+**Mechanism and policy** — the distinction the packages are split along:
+mechanism knows how telemetry works, policy knows what a domain may say. A
+principle, not the name of any package.
 
 ## Governance
 
@@ -80,6 +90,11 @@ reports healthy.
 "telemetry is thirty seconds behind" from "telemetry is twenty minutes behind",
 which are different incidents.
 
-**Fail-closed** — the property that an ungoverned service exports nothing rather
-than exporting ungoverned. It converts an invisible compliance gap into a
-visible coverage gap, for which a detector already exists.
+**Fail-closed** — the property that anything the collector's allowlist does
+not name is dropped before storage, so a governance gap shows up as missing
+data and never as stored restricted data. A property of the collector, which
+is the one enforcement point every service passes through.
+
+**Required governance** — a service's declaration that it handles regulated
+data. It turns the absence of in-process controls from a silent gap into a
+failure to start.
