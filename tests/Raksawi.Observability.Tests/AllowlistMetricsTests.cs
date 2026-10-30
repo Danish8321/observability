@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using OpenTelemetry;
@@ -47,7 +48,8 @@ public class AllowlistMetricsTests : IDisposable
     [Fact]
     public void A_dropped_key_is_counted_and_dimensioned_by_attribute_key()
     {
-        var recorded = new List<KeyValuePair<string, object?>>();
+        // Concurrent: other tests' drops reach this listener from their own threads.
+        var recorded = new ConcurrentBag<KeyValuePair<string, object?>>();
 
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
@@ -89,7 +91,8 @@ public class AllowlistMetricsTests : IDisposable
     [Fact]
     public void The_dimension_is_bounded_when_a_service_builds_keys_from_data()
     {
-        var values = new HashSet<string>(StringComparer.Ordinal);
+        // Concurrent: other tests' drops reach this listener from their own threads.
+        var values = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
 
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
@@ -103,7 +106,7 @@ public class AllowlistMetricsTests : IDisposable
         {
             foreach (var tag in tags)
             {
-                _ = values.Add((string)tag.Value!);
+                _ = values.TryAdd((string)tag.Value!, 0);
             }
         });
         listener.Start();
@@ -120,14 +123,14 @@ public class AllowlistMetricsTests : IDisposable
             DropOneKey(processor, $"{prefix}{i}");
         }
 
-        var mine = values.Where(value => value.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+        var mine = values.Keys.Where(value => value.StartsWith(prefix, StringComparison.Ordinal)).ToList();
 
         // Bounded by the cap, not by how many distinct keys the service
         // invented, and everything past the cap lands in one bucket.
         Assert.True(
             mine.Count <= AllowlistDropMetric.MaxDistinctDroppedKeys,
             $"{mine.Count} distinct dimension values from {distinctKeys} distinct keys");
-        Assert.Contains(AllowlistDropMetric.OverflowDimension, values);
+        Assert.Contains(AllowlistDropMetric.OverflowDimension, values.Keys);
     }
 
     [Fact]
