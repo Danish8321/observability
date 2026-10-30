@@ -36,7 +36,7 @@ public class AllowlistMetricsTests : IDisposable
     }
 
     private AllowlistProcessor CreateProcessor() =>
-        new(AttributeAllowlist.ForDeclaredKeys("application.id"), []);
+        new(AttributeAllowlist.ForDeclaredKeys("application.id"));
 
     private void DropOneKey(AllowlistProcessor processor, string key)
     {

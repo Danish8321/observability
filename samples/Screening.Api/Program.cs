@@ -27,8 +27,7 @@ builder.AddRaksawiObservability(o =>
     // mistake, one signal over, and just as silent.
     o.Meters.Add(ScreeningTelemetry.MeterName);
 
-    // Without this, CouchDB document identifiers reach the store in url.full.
-    // It is an exact host match and it fails open (ADR-0023).
+    // Without this, CouchDB spans export no url.full at all (ADR-0023, C5).
     o.CouchDbHosts.Add(new Uri(couchDbUrl).Host);
 });
 

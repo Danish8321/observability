@@ -203,11 +203,13 @@ replaced the document ID and view key with placeholders. On a CouchDB span the
 redacted URL shape is the whole diagnostic value of the span, so dropping it
 would discard the reason the span exists.
 
-🔒 The two directions fail **opposite** ways, deliberately. `CouchDbUrlPolicy`'s
-redaction fails *open* — an unconfigured host means the URL is never redacted.
-The allowlist fails *closed* — an unconfigured host means `url.full` is dropped
-entirely. So a host missing from `CouchDbHosts` costs diagnostic value and does
-not leak.
+🔒 The allowlist does not trust the host. The HttpClient hook records the
+redacted URL it wrote (an `Activity` custom property, never a tag), and the
+allowlist exports `url.full` only when it still equals that record (C5). An
+unconfigured host, redaction turned off, or anything rewriting `url.full`
+afterwards means `url.full` is dropped — counted under
+`raksawi.telemetry.attributes.dropped` — never exported raw. `url.query` has no
+record yet and always drops.
 
 `exception.message` remains allowed on application and HTTP spans, where it
 carries diagnostic value and rarely quotes record contents. It is covered by

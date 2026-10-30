@@ -32,8 +32,8 @@ public class AllowlistProcessorTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private AllowlistProcessor CreateProcessor(params string[] couchDbHosts) =>
-        new(AttributeAllowlist.ForDeclaredKeys("application.id", "correlation.id"), couchDbHosts);
+    private static AllowlistProcessor CreateProcessor() =>
+        new(AttributeAllowlist.ForDeclaredKeys("application.id", "correlation.id"));
 
     [Fact]
     public void Drops_an_undeclared_attribute_and_keeps_the_allowlisted_ones()
@@ -70,32 +70,32 @@ public class AllowlistProcessorTests : IDisposable
         activity.SetTag("server.address", "api.example.com");
         activity.SetTag("url.full", "https://api.example.com/customers/0101901234");
 
-        CreateProcessor("couch").OnEnd(activity);
+        CreateProcessor().OnEnd(activity);
 
         Assert.Null(activity.GetTagItem("url.full"));
         Assert.Equal("api.example.com", activity.GetTagItem("server.address"));
     }
 
     [Fact]
-    public void Keeps_url_full_on_a_span_to_a_configured_CouchDb_host()
+    public void Keeps_url_full_the_CouchDb_hook_recorded()
     {
-        // By this point CouchDbUrlPolicy has already replaced the document ID
-        // with {docid} — the value below is what actually reaches the processor.
+        // The HttpClient hook wrote the redacted URL and recorded what it wrote.
         using var activity = _source.StartActivity("application.load")!;
         activity.SetTag("server.address", "couch");
         activity.SetTag("url.full", "http://couch:5984/kyc/{docid}");
+        activity.SetCustomProperty(TelemetryMarkers.UrlRedacted, "http://couch:5984/kyc/{docid}");
 
-        CreateProcessor("couch").OnEnd(activity);
+        CreateProcessor().OnEnd(activity);
 
         Assert.Equal("http://couch:5984/kyc/{docid}", activity.GetTagItem("url.full"));
     }
 
     [Fact]
-    public void Drops_url_full_when_the_CouchDb_host_is_not_configured()
+    public void Drops_url_full_the_CouchDb_hook_did_not_record()
     {
-        // 🔒 Fails closed, opposite to CouchDbUrlPolicy's redaction, which
-        // fails open. A host missing from configuration loses diagnostic value
-        // here rather than leaking an unredacted URL.
+        // 🔒 Fails closed: a host missing from configuration, or redaction
+        // turned off, loses diagnostic value here rather than leaking an
+        // unredacted URL. The host tag alone proves nothing.
         using var activity = _source.StartActivity("application.load")!;
         activity.SetTag("server.address", "couch");
         activity.SetTag("url.full", "http://couch:5984/kyc/abc-123");

@@ -52,19 +52,7 @@ public static class RaksawiObservabilityExtensions
                 // this runtime. The 4.8 entry point registers its own
                 // equivalents in the same position.
                 .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation(http =>
-                {
-                    http.FilterHttpRequestMessage = request =>
-                        RaksawiPipeline.ShouldTrace(request.RequestUri);
-
-                    http.EnrichWithHttpRequestMessage = (activity, request) =>
-                    {
-                        if (RaksawiPipeline.TryRedactCouchDbUrl(options, request.RequestUri, out var redacted))
-                        {
-                            activity.SetTag("url.full", redacted);
-                        }
-                    };
-                })
+                .AddHttpClientInstrumentation(http => RaksawiPipeline.ConfigureHttpClientTracing(http, options))
                 .AddRaksawiExport(options))
             .WithMetrics(metrics => metrics
                 .AddRaksawiIdentity(options, resource)

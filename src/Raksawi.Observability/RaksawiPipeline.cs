@@ -1,5 +1,6 @@
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
+using OpenTelemetry.Instrumentation.Http;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -58,9 +59,7 @@ internal static class RaksawiPipeline
         this TracerProviderBuilder builder,
         RaksawiObservabilityOptions options) =>
         builder
-            .AddProcessor(new AllowlistProcessor(
-                AttributeAllowlist.FromLoadedAssemblies(),
-                options.CouchDbHosts.ToArray()))
+            .AddProcessor(new AllowlistProcessor(AttributeAllowlist.FromLoadedAssemblies()))
             .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/traces"));
 
     /// <summary>
@@ -113,21 +112,40 @@ internal static class RaksawiPipeline
         builder.AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/metrics"));
 
     /// <summary>
+    /// Outbound HTTP tracing: the changes feed untraced, CouchDB URLs redacted.
+    /// </summary>
+    internal static void ConfigureHttpClientTracing(
+        HttpClientTraceInstrumentationOptions http,
+        RaksawiObservabilityOptions options)
+    {
+        http.FilterHttpRequestMessage = request => ShouldTrace(request.RequestUri);
+
+        http.EnrichWithHttpRequestMessage = (activity, request) =>
+        {
+            if (TryRedactCouchDbUrl(options, request.RequestUri, out var redacted))
+            {
+                _ = activity.SetTag("url.full", redacted);
+                activity.SetCustomProperty(TelemetryMarkers.UrlRedacted, redacted);
+            }
+        };
+    }
+
+    /// <summary>
     /// Whether an outbound request is one this service should redact as CouchDB,
     /// and the redacted form if so.
     /// </summary>
     /// <remarks>
-    /// 🔒 Exact host match, failing <b>open</b>: a host missing from
+    /// Host match ignores case: <see cref="Uri.Host"/> is lower-cased, the
+    /// configured list is whatever someone typed. A host missing from
     /// <see cref="RaksawiObservabilityOptions.CouchDbHosts"/> is not redacted,
-    /// and no error says so. Verify against a real span (ADR-0023). Shared so
-    /// both runtimes apply the same rule to the same URLs — they reach it
-    /// through different instrumentation hooks.
+    /// and no error says so — but nothing is recorded either, so
+    /// <see cref="AllowlistProcessor"/> drops its <c>url.full</c> (C5).
     /// </remarks>
     internal static bool TryRedactCouchDbUrl(RaksawiObservabilityOptions options, Uri? uri, out string redacted)
     {
         redacted = string.Empty;
 
-        if (!options.RedactCouchDbUrls || uri is null || !options.CouchDbHosts.Contains(uri.Host))
+        if (!options.RedactCouchDbUrls || uri is null || !options.CouchDbHosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase))
         {
             return false;
         }

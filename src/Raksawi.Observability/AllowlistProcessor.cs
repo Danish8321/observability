@@ -12,13 +12,11 @@ namespace Raksawi.Observability;
 internal sealed class AllowlistProcessor : BaseProcessor<Activity>
 {
     private readonly AttributeAllowlist _allowlist;
-    private readonly IReadOnlyCollection<string> _couchDbHosts;
     private readonly AllowlistDropMetric _dropped = new(AllowlistDropMetric.SpanSignal);
 
-    public AllowlistProcessor(AttributeAllowlist allowlist, IReadOnlyCollection<string> couchDbHosts)
+    public AllowlistProcessor(AttributeAllowlist allowlist)
     {
         _allowlist = allowlist;
-        _couchDbHosts = couchDbHosts;
     }
 
     public override void OnEnd(Activity data)
@@ -28,12 +26,12 @@ internal sealed class AllowlistProcessor : BaseProcessor<Activity>
             return;
         }
 
-        var isCouchDbSpan = IsCouchDbSpan(data);
+        var redactedUrl = data.GetCustomProperty(TelemetryMarkers.UrlRedacted) as string;
         List<string>? toDrop = null;
 
         foreach (var tag in data.TagObjects)
         {
-            if (_allowlist.IsAllowed(tag.Key, isCouchDbSpan))
+            if (_allowlist.IsAllowed(tag.Key, IsRedactedCouchDbUrl(tag, redactedUrl)))
             {
                 continue;
             }
@@ -56,49 +54,18 @@ internal sealed class AllowlistProcessor : BaseProcessor<Activity>
     }
 
     /// <summary>
-    /// Whether this span is an outbound call to a configured CouchDB host.
+    /// Whether this tag is the CouchDB URL our HttpClient hook redacted,
+    /// unchanged since.
     /// </summary>
     /// <remarks>
-    /// 🔒 Exact host match, failing <b>closed</b>: a host missing from
-    /// configuration is not treated as CouchDB, so <c>url.full</c> is denied
-    /// rather than allowed. Such a host loses diagnostic value and never leaks.
-    /// <para>
-    /// This is the opposite direction to <see cref="CouchDbUrlPolicy"/>'s
-    /// redaction, which fails <b>open</b> on a host mismatch — that one is the
-    /// path to verify against a real span.
-    /// </para>
+    /// 🔒 C5: the record is the value written, not a flag, so anything that
+    /// rewrites <c>url.full</c> afterwards makes the key drop rather than leak.
+    /// Fails closed: a span without the record — redaction off, an
+    /// unconfigured host, another library — never exports the URL.
+    /// <c>url.query</c> has no record yet, so it always drops.
     /// </remarks>
-    private bool IsCouchDbSpan(Activity data)
-    {
-        if (_couchDbHosts.Count == 0)
-        {
-            return false;
-        }
-
-        foreach (var tag in data.TagObjects)
-        {
-            if (!string.Equals(tag.Key, "server.address", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var host = tag.Value as string;
-            if (host is null)
-            {
-                return false;
-            }
-
-            foreach (var couchDbHost in _couchDbHosts)
-            {
-                if (string.Equals(host, couchDbHost, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        return false;
-    }
+    private static bool IsRedactedCouchDbUrl(KeyValuePair<string, object?> tag, string? redactedUrl) =>
+        redactedUrl is not null
+        && string.Equals(tag.Key, "url.full", StringComparison.Ordinal)
+        && string.Equals(tag.Value as string, redactedUrl, StringComparison.Ordinal);
 }

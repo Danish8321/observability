@@ -206,10 +206,11 @@ Skip if not applicable. Two separate things, both required.
 o.CouchDbHosts.Add(new Uri(couchDbUrl).Host);
 ```
 
-Exact host match, and it **fails open**: a wrong or missing host means
-silent non-redaction, not an error
-([ADR-0023](../adr/0023-couchdb-changes-the-database-surface.md)). Verify on a real span
-before trusting it (A12, step 5).
+Host match ignoring case. A wrong or missing host is not an error: the URL is
+not redacted, so `url.full` is dropped before export rather than leaked
+([ADR-0023](../adr/0023-couchdb-changes-the-database-surface.md), C5). Check a
+real span shows the redacted `url.full` (A12, step 5) — its absence means the
+host list is wrong.
 
 **Two — credentials need an explicit header.** `HttpClient` ignores userinfo
 embedded in a URI (RFC 3986 3.2.1 is not honoured), so every call 401s

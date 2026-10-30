@@ -73,7 +73,7 @@ One operational note the demo stack shares: a fresh docker named volume is root-
 2. One service reaches the backend end to end
 3. Two services show up on one trace (HTTP propagation across the hop)
 4. A message hop (NATS) lands on the same trace — most likely failure point (confirmed live 2026-08-11: the worker's process span was starting a disconnected new root trace instead of joining the producer's — fixed, but re-verify this on any consumer span you add)
-5. Inspect a stored CouchDB-touching span: `url.full` should show the redacted path, not the raw document ID **and not userinfo/credentials** — an earlier redaction bug stripped the doc ID but left credentials in cleartext (confirmed live 2026-08-11, fixed) — exact-host-match redaction **fails open**, so a wrong host list means silent non-redaction, not an error
+5. Inspect a stored CouchDB-touching span: `url.full` should show the redacted path, not the raw document ID **and not userinfo/credentials** — an earlier redaction bug stripped the doc ID but left credentials in cleartext (confirmed live 2026-08-11, fixed) — no `url.full` at all means the host list is wrong: since 2026-10-30 an unredacted URL is dropped before export, not stored
 6. Query by `correlation.id` and confirm the whole workflow assembles — this is the actual deliverable, not span count
 
 ## Reading before touching production shape

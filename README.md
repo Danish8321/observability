@@ -271,9 +271,9 @@ passing vacuously on empty tokens — see [`docs/allowlist.md`](./docs/allowlist
 after the demo ([ADR-0022](./docs/adr/0022-demo-first-resequencing.md)).
 CouchDB URL redaction
 ([ADR-0023](./docs/adr/0023-couchdb-changes-the-database-surface.md)) fails
-open by design; both the redaction and the fail-open path were verified
-against real spans on 2026-08-11
-(`.scratch/demo-readiness/issues/01-verify-couchdb-redaction-real-span.md`).
+closed since 2026-10-30: `url.full` is exported only when it equals the
+redacted value the HttpClient hook recorded, so a host mismatch, redaction
+turned off or a later rewrite drops it rather than leaking it.
 
 What is unresolved is tracked in
 [`docs/open-questions.md`](./docs/open-questions.md) rather than in anyone's

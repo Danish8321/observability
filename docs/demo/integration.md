@@ -51,9 +51,9 @@ Two failure modes worth knowing before they cost an afternoon:
 
 - **`ServiceName` must differ per service.** Two services sharing a name merge
   into one node and the demo's whole point disappears.
-- **`CouchDbHosts` must match the actual host string** used in connection URLs.
-  It is a plain equality check on `Uri.Host`. Wrong value means no redaction and
-  no error — it fails open.
+- **`CouchDbHosts` must match the actual host** used in connection URLs
+  (case-insensitive, on `Uri.Host`). Wrong value means no error and no
+  `url.full` on CouchDB spans — dropped, not leaked.
 
 ## Step 3 — NATS
 

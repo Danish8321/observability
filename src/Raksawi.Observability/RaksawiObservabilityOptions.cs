@@ -54,9 +54,9 @@ public sealed class RaksawiObservabilityOptions
     /// Redact document identifiers and view keys out of CouchDB URLs.
     /// QD2 (demo phase D0) answered 2026-08-11: document IDs are opaque, not
     /// derived from applicant data, so this is defense-in-depth rather than a
-    /// compliance-blocking requirement. Still defaults to true, and the
-    /// redaction still fails open on a host mismatch — verify against a real
-    /// span before relying on it.
+    /// compliance-blocking requirement. Still defaults to true. Turning it off
+    /// does not export raw URLs: <c>url.full</c> on CouchDB spans is then
+    /// dropped (C5).
     /// </summary>
     public bool RedactCouchDbUrls { get; set; } = true;
 

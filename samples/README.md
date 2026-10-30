@@ -150,8 +150,9 @@ in `url.full`.
 o.CouchDbHosts.Add(new Uri(couchDbUrl).Host);
 ```
 
-🔒 **Exact host match, and it fails open.** Wrong value means no redaction and
-no error. Verify on a real span before trusting it.
+🔒 **Host match ignoring case.** Wrong value means no error and no `url.full`
+on CouchDB spans — dropped, not leaked. A real span without `url.full` means
+the host is wrong.
 
 ### Class 3 is stored, never emitted
 
