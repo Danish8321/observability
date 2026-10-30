@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture review: observability</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .seam { border-style: dashed; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+  .mod { border: 1.5px solid #475569; background: #fff; }
+  .leak { color: #dc2626; }
+  .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+<header class="space-y-3">
+  <h1 class="font-serif text-4xl">Architecture review — observability</h1>
+  <p class="text-sm text-slate-500">2026-10-28 · branch ccr-262b47b0-gflgj5 @ f0f636f · read: all of <span class="font-mono">src/</span>, <span class="font-mono">samples/</span>, <span class="font-mono">deploy/collector/config.yaml</span>, contract tests</p>
+  <div class="flex flex-wrap gap-4 text-xs text-slate-600 pt-2">
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 mod"></span>module</span>
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border-2 border-dashed border-slate-500"></span>seam</span>
+    <span class="flex items-center gap-2 leak"><span class="inline-block w-5 h-0.5 bg-red-600"></span>leakage</span>
+    <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 deep"></span>deep module</span>
+  </div>
+  <nav class="text-sm flex flex-wrap gap-x-5 gap-y-1 pt-2">
+    <a class="underline" href="#c1">1 · One statement of the allowlist</a>
+    <a class="underline" href="#c2">2 · CouchDB host policy</a>
+    <a class="underline" href="#c3">3 · Allowlist discovery vs verdict</a>
+    <a class="underline" href="#c4">4 · Log keys enforced at run time only</a>
+    <a class="underline" href="#c5">5 · Pipeline split for a deferred runtime</a>
+  </nav>
+</header>
+
+<section id="candidates" class="space-y-10">
+
+<!-- ============================ 1 ============================ -->
+<article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="space-y-2">
+    <h2 class="font-serif text-2xl">Deepen the allowlist: one statement, three readers</h2>
+    <div class="flex flex-wrap gap-2 text-xs">
+      <span class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-semibold">Strong</span>
+      <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">ports &amp; adapters</span>
+    </div>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>src/Raksawi.Observability/AllowlistRules.cs</li>
+    <li>src/Raksawi.Observability.Analyzers/DeclaredKeys.cs</li>
+    <li>deploy/collector/config.yaml (lines 130–215)</li>
+    <li>tests/…/CollectorAllowlistContractTests.cs (429 lines)</li>
+  </ul>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <pre class="mermaid">
+flowchart TB
+  R[AllowlistRules.cs<br/>families, carve-outs, messaging keys]
+  A[Analyzer DeclaredKeys]
+  P[AttributeAllowlist]
+  Y1[YAML keep: spans]
+  Y2[YAML keep: logs]
+  Y3[YAML resource x3]
+  Y4[YAML delete: metrics]
+  T[Contract tests<br/>string Contains]
+  R --> A
+  R --> P
+  R -.hand copy.-> Y1
+  R -.hand copy.-> Y2
+  R -.hand copy.-> Y3
+  R -.hand copy.-> Y4
+  T -.substring check.-> Y1
+  T -.substring check.-> Y2
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class Y1,Y2,Y3,Y4 leak
+        </pre>
+      </div>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <pre class="mermaid">
+flowchart TB
+  subgraph D[Allowlist policy module]
+    R[families · carve-outs · enumerated keys · resource set]
+  end
+  D ==> A[Analyzer adapter]
+  D ==> P[Runtime adapter]
+  D ==> C[Collector adapter<br/>emits OTTL]
+  C --> Y[config.yaml generated section]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+  class D,R deep
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-1 text-sm">
+    <p><b>Problem.</b> The rule is stated in C# once and in OTTL regex <b>five times</b> (span keep, log keep, three resource copies, metric deny); the contract test proves a substring is present, not that the two sides agree, and its own remarks say both sides were once wrong identically (finding 01).</p>
+    <p><b>Solution.</b> Make the allowlist rules a module with one interface; the analyzer, the runtime processor and a collector emitter are three adapters at that seam.</p>
+  </div>
+  <ul class="text-sm list-disc ml-5 text-slate-700">
+    <li>locality: a family change edited once</li>
+    <li>leverage: one table, three adapters</li>
+    <li>tests compare emitted OTTL to rules, not substrings</li>
+    <li>delete ~8 copy-paste regex blocks</li>
+  </ul>
+  <div class="rounded border border-amber-300 bg-amber-50 text-amber-900 text-sm px-3 py-2">
+    config.yaml header states the file is “written by hand rather than generated”. Worth reopening: the contract tests were written because drift is the failure; five copies make the substring check the weakest link.
+  </div>
+</article>
+
+<!-- ============================ 2 ============================ -->
+<article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="space-y-2">
+    <h2 class="font-serif text-2xl">Gather CouchDB host policy into one module</h2>
+    <div class="flex flex-wrap gap-2 text-xs">
+      <span class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-semibold">Strong</span>
+      <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">in-process</span>
+    </div>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>RaksawiPipeline.cs — TryRedactCouchDbUrl (list <i>Contains</i>, ordinal)</li>
+    <li>AllowlistProcessor.cs — IsCouchDbSpan (OrdinalIgnoreCase)</li>
+    <li>CouchDbUrlPolicy.cs, RaksawiObservabilityOptions.cs</li>
+    <li>deploy/collector/config.yaml — <code>^couchdb(\.raksawi\.internal)?$</code></li>
+  </ul>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-3 text-xs">
+        <div class="mod rounded p-2"><div class="lbl">HTTP enrich hook</div>host match: <b>case-sensitive</b></div>
+        <div class="h-5 flex items-center gap-2 leak"><span class="inline-block w-10 h-0.5 bg-red-600"></span> disagree on “CouchDB” vs “couchdb”</div>
+        <div class="mod rounded p-2"><div class="lbl">AllowlistProcessor</div>host match: <b>ignore case</b></div>
+        <div class="mod rounded p-2"><div class="lbl">Collector regex</div>third host list, hard-coded</div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <div class="rounded-lg p-4 deep text-xs space-y-2">
+        <div class="lbl">CouchDB policy module</div>
+        <div>interface: <code>Classify(Uri)</code> → redacted | not couch · <code>IsCouchSpan(tags)</code></div>
+        <div class="opacity-60">host list · comparison rule · changes-feed test · path/query redaction (internal)</div>
+        <div class="border border-dashed border-slate-400 rounded px-2 py-1 opacity-80">seam: collector regex derived from the same host list</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-1 text-sm">
+    <p><b>Problem.</b> The same fact — which hosts are CouchDB — has two comparison rules in-process. A host configured as <code>CouchDB</code> is not redacted (<code>uri.Host</code> is lowercase, list match is ordinal) yet the processor treats the span as CouchDB and <b>admits <code>url.full</code> unredacted</b>. Fail-open and fail-closed meet in the wrong order.</p>
+    <p><b>Solution.</b> One module owns host matching, redaction and the span classification; hook and processor both call it.</p>
+  </div>
+  <ul class="text-sm list-disc ml-5 text-slate-700">
+    <li>locality: one comparison rule, one test</li>
+    <li>leak path closed by construction</li>
+    <li>RKS-style fail-open comments retire</li>
+    <li>tests hit one interface</li>
+  </ul>
+  <div class="rounded border border-amber-300 bg-amber-50 text-amber-900 text-sm px-3 py-2">
+    Consistent with ADR-0023; verify the case mismatch on a real span before acting (the sample is safe: <code>new Uri(...).Host</code> is already lowercase).
+  </div>
+</article>
+
+<!-- ============================ 3 ============================ -->
+<article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="space-y-2">
+    <h2 class="font-serif text-2xl">Split AttributeAllowlist: discovery apart from verdict</h2>
+    <div class="flex flex-wrap gap-2 text-xs">
+      <span class="px-2 py-1 rounded bg-amber-100 text-amber-800 font-semibold">Worth exploring</span>
+      <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">local-substitutable</span>
+    </div>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>AttributeAllowlist.cs (265 lines, ~190 are assembly walking)</li>
+    <li>RaksawiPipeline.cs — AddRaksawiExport, AddRaksawiLogging</li>
+    <li>AllowlistProcessor.cs, LogAllowlistProcessor.cs, AllowlistDropMetric.cs</li>
+  </ul>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <pre class="mermaid">
+sequenceDiagram
+  participant S as Startup
+  participant T as Trace export
+  participant L as Log export
+  participant A as AttributeAllowlist
+  S->>T: AddRaksawiExport
+  T->>A: FromLoadedAssemblies (walk closure)
+  S->>L: AddRaksawiLogging
+  L->>A: FromLoadedAssemblies (walk closure again)
+  Note over A: measured ~290ms cold, paid twice
+        </pre>
+      </div>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <pre class="mermaid">
+flowchart LR
+  D[Declared-key discovery<br/>reflection adapter] -->|once| V[Verdict module<br/>IsAllowed key]
+  F[Fixed set adapter<br/>tests] -.-> V
+  V --> SP[Span processor]
+  V --> LP[Log processor]
+  classDef deep fill:#0f172a,color:#f8fafc;
+  class V deep
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-1 text-sm">
+    <p><b>Problem.</b> One class finds assemblies, checks provenance and answers “is this key allowed”; the startup walk runs once per signal and the two processors repeat the same drop-and-count loop around it.</p>
+    <p><b>Solution.</b> Discovery runs once behind a seam with two adapters already present (reflection, and <code>ForDeclaredKeys</code> in tests); verdict becomes a small module both processors share.</p>
+  </div>
+  <ul class="text-sm list-disc ml-5 text-slate-700">
+    <li>one startup walk, not two</li>
+    <li>locality: provenance logic isolated</li>
+    <li>two adapters justify the seam</li>
+    <li>processors shrink to enumeration</li>
+  </ul>
+</article>
+
+<!-- ============================ 4 ============================ -->
+<article id="c4" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="space-y-2">
+    <h2 class="font-serif text-2xl">Log property keys: enforced at run time, invisible at build</h2>
+    <div class="flex flex-wrap gap-2 text-xs">
+      <span class="px-2 py-1 rounded bg-amber-100 text-amber-800 font-semibold">Worth exploring</span>
+      <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">in-process</span>
+    </div>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>TelemetryGovernanceAnalyzer.cs (Activity tags only)</li>
+    <li>LogAllowlistProcessor.cs</li>
+    <li>samples/Screening.Domain/ApplicationPublisher.cs, ApplicationRepository.cs</li>
+    <li>samples/Screening.Worker/ScreeningConsumer.cs</li>
+  </ul>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 text-xs space-y-2">
+        <div class="mod rounded p-2">Build: analyzer reads <code>SetTag</code> literals</div>
+        <div class="mod rounded p-2 leak" style="border-color:#dc2626">Log templates: <code>{ApplicationId}</code>, <code>{MessageId}</code>, <code>{Attempt}</code> — not read</div>
+        <div class="mod rounded p-2">Run time: dropped silently, counted in <code>attributes.dropped</code></div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <div class="rounded-lg p-4 deep text-xs space-y-2">
+        <div class="lbl">Governance analyzer</div>
+        <div>one rule: a literal key in a tag call <i>or</i> a log template placeholder must be allowed</div>
+        <div class="opacity-60">same verdict module as the runtime (candidate 1)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-1 text-sm">
+    <p><b>Problem.</b> ADR-0028 makes a PascalCase log property vanish at export, and the sample’s own comment says one line was left undeclared on purpose — yet the publisher, repository and consumer logs carry undeclared placeholders and nothing at build says so.</p>
+    <p><b>Solution.</b> Extend the build-time enforcement point to read message templates against the same verdict.</p>
+  </div>
+  <ul class="text-sm list-disc ml-5 text-slate-700">
+    <li>locality: key rule lives in one place</li>
+    <li>silent drop becomes a build signal</li>
+    <li>sample demonstrates what it teaches</li>
+  </ul>
+  <div class="rounded border border-amber-300 bg-amber-50 text-amber-900 text-sm px-3 py-2">
+    Intent unclear: if those sample logs are meant to be dropped, the sample should say so; either way the gap is real. Template parsing is the cost — the analyzer is deliberately literal-only.
+  </div>
+</article>
+
+<!-- ============================ 5 ============================ -->
+<article id="c5" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="space-y-2">
+    <h2 class="font-serif text-2xl">RaksawiPipeline’s split exists for a runtime that is out of the build</h2>
+    <div class="flex flex-wrap gap-2 text-xs">
+      <span class="px-2 py-1 rounded bg-slate-200 text-slate-700 font-semibold">Speculative</span>
+      <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">in-process</span>
+    </div>
+  </div>
+  <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+    <li>RaksawiPipeline.cs — AddRaksawiIdentity / AddRaksawiExport</li>
+    <li>RaksawiObservabilityExtensions.net10.cs</li>
+    <li>RaksawiObservability.net48.cs (137 lines, compiled by nothing)</li>
+  </ul>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <div class="rounded-lg border border-slate-200 bg-white p-4 text-xs space-y-1">
+        <div class="mod rounded p-2 text-center">net10 entry</div>
+        <div class="text-center">▼ identity · <i>runtime instrumentation</i> · export</div>
+        <div class="mod seam rounded p-2 text-center" style="border-style:dashed">shared pipeline (2 callers → 1)</div>
+        <div class="mod rounded p-2 text-center opacity-40">net48 entry — not built</div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">After (until ADR-0029 reverses)</div>
+      <div class="rounded-lg p-4 deep text-xs space-y-2">
+        <div class="lbl">net10 entry</div>
+        <div>pipeline ordering owned in one place; split returns with the second caller</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-1 text-sm">
+    <p><b>Problem.</b> The two-step shape and its ordering warning serve a second adapter that no longer compiles, so the seam currently has one adapter.</p>
+    <p><b>Solution.</b> Either fold it back into the entry point or leave it and treat the net48 file as a frozen record.</p>
+  </div>
+  <ul class="text-sm list-disc ml-5 text-slate-700">
+    <li>one adapter means hypothetical seam</li>
+    <li>locality: ordering rule beside its use</li>
+  </ul>
+  <div class="rounded border border-amber-300 bg-amber-50 text-amber-900 text-sm px-3 py-2">
+    Cuts against ADR-0029 and the earlier decision to deduplicate (architecture-review issue 06). Only worth reopening if 4.8 stays deferred for long; otherwise leave it.
+  </div>
+</article>
+
+</section>
+
+<section id="top-recommendation">
+  <div class="rounded-xl bg-slate-900 text-slate-50 p-8 space-y-3">
+    <div class="lbl text-slate-400">Top recommendation</div>
+    <h2 class="font-serif text-2xl">Start with <a class="underline" href="#c2">candidate 2</a>, then <a class="underline" href="#c1">candidate 1</a></h2>
+    <p class="text-sm text-slate-300">Candidate 2 is a small, local change that closes a real fail-open path and gives candidate 1 one fewer rule to carry. Candidate 1 then removes the largest source of silent drift in the repository.</p>
+  </div>
+</section>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+</script>
+<title>Neutral Observability Plan Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; dashboards rendered as panel grids, the way an on-call engineer meets them */
+:root {
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --ink: #15202b;
+  --muted: #566573;
+  --line: #d9e0e5;
+  --accent: #0b6e83;
+  --accent-soft: #e2f0f3;
+  --ok: #2c7a4b;
+  --ok-soft: #e3f2e8;
+  --warn: #9a6512;
+  --warn-soft: #f8eedb;
+  --bad: #b23a3a;
+  --bad-soft: #f7e3e3;
+  --new: #5a4bb0;
+  --new-soft: #ebe8f8;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f161c; --surface: #16212a; --ink: #e6edf2; --muted: #9aabb8; --line: #2a3843;
+    --accent: #5fc2d6; --accent-soft: #15333b;
+    --ok: #6cc893; --ok-soft: #173326; --warn: #e3b25c; --warn-soft: #3a2e17;
+    --bad: #f08a8a; --bad-soft: #3d1f22; --new: #a99cf0; --new-soft: #26213f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f161c; --surface: #16212a; --ink: #e6edf2; --muted: #9aabb8; --line: #2a3843;
+  --accent: #5fc2d6; --accent-soft: #15333b;
+  --ok: #6cc893; --ok-soft: #173326; --warn: #e3b25c; --warn-soft: #3a2e17;
+  --bad: #f08a8a; --bad-soft: #3d1f22; --new: #a99cf0; --new-soft: #26213f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(30px, 5vw, 44px); }
+h2 { font-size: 26px; }
+h3 { font-size: 18px; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 18px; }
+.lede { color: var(--muted); font-size: 16px; }
+header { display: grid; gap: 12px; }
+
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 20px; display: grid; gap: 10px; align-content: start; }
+.q .ask { font-family: var(--display); font-size: 19px; font-weight: 500; }
+.answer { font-family: var(--display); font-size: 28px; font-weight: 600; }
+.answer.warn { color: var(--warn); }
+.answer.ok { color: var(--ok); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; font-weight: 500; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.p-ok { color: var(--ok); background: var(--ok-soft); }
+.p-warn { color: var(--warn); background: var(--warn-soft); }
+.p-bad { color: var(--bad); background: var(--bad-soft); }
+.p-new { color: var(--new); background: var(--new-soft); }
+.p-acc { color: var(--accent); background: var(--accent-soft); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Incident strip */
+.incident { display: grid; gap: 14px; }
+.run { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 12px; }
+.run-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.step { border-left: 3px solid var(--line); padding: 4px 0 4px 12px; display: grid; gap: 2px; min-width: 0; }
+.step .t { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.step .w { font-size: 13.5px; line-height: 1.4; }
+.step.bad { border-left-color: var(--bad); }
+.step.ok { border-left-color: var(--ok); }
+.step.acc { border-left-color: var(--accent); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-size: 13px; color: var(--muted); }
+.dash { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.dash-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.dash-head h3 { font-size: 17px; }
+.tallies { display: grid; gap: 4px; }
+.tally-wrap { display: grid; grid-template-columns: 44px 160px auto; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tally { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.tally span { display: block; height: 100%; }
+.t-ok { background: var(--ok); } .t-warn { background: var(--warn); } .t-bad { background: var(--bad); } .t-new { background: var(--new); }
+.panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1px; background: var(--line); }
+.panel { background: var(--surface); padding: 12px 14px 14px; display: grid; gap: 6px; align-content: start; border-top: 3px solid transparent; min-width: 0; }
+.panel.s-ok { border-top-color: var(--ok); }
+.panel.s-warn { border-top-color: var(--warn); }
+.panel.s-bad { border-top-color: var(--bad); }
+.panel.s-new { border-top-color: var(--new); }
+.panel .top { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.panel .num { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.panel .ms { font-family: var(--mono); font-size: 11px; color: var(--new); }
+.panel .name { font-weight: 600; font-size: 14px; line-height: 1.3; }
+.panel .src { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.panel .fix { font-size: 12px; color: var(--ink); line-height: 1.4; padding-top: 4px; border-top: 1px dashed var(--line); }
+.dash-note { padding: 10px 16px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+
+.flow { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; overflow-x: auto; }
+.mermaid { margin: 0; min-width: 680px; }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.box ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; }
+.box li { max-width: 62ch; }
+
+.bars { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px 16px; display: grid; gap: 9px; }
+.bar-row { display: grid; grid-template-columns: minmax(150px, 250px) 1fr 64px; gap: 12px; align-items: center; }
+.bar-label { font-size: 13.5px; min-width: 0; }
+.bar-label .mono { color: var(--muted); margin-right: 6px; }
+.track { height: 16px; background: var(--bg); border-radius: 3px; position: relative; }
+.fill { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--accent); }
+.fill.newwork { background: var(--new); }
+.weeks { font-family: var(--mono); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.mark { border-top: 2px dashed var(--ok); margin: 6px 0 2px; position: relative; }
+.mark span { position: absolute; right: 0; top: -11px; background: var(--surface); padding: 0 6px; font-family: var(--mono); font-size: 11px; color: var(--ok); letter-spacing: 0.05em; text-transform: uppercase; }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 2px; }
+.stat .v { font-family: var(--display); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 13px; color: var(--muted); }
+
+ol.changes { margin: 0; padding-left: 22px; display: grid; gap: 12px; }
+ol.changes li { max-width: 74ch; }
+ol.changes b, .box b { font-weight: 600; }
+footer { font-size: 13px; color: var(--muted); display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 18px; }
+
+@media (max-width: 560px) {
+  .bar-row { grid-template-columns: 1fr 52px; }
+  .bar-row .track { grid-column: 1 / -1; grid-row: 2; }
+  .tally-wrap { grid-template-columns: 44px 1fr; }
+  .tally-wrap .c { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Review · plan revision 6 · 29 Oct 2026</div>
+  <h1>Neutral observability plan review</h1>
+  <p class="lede">Revision 6 of the plan, read against the code on <code>ccr-262b47b0-gflgj5</code>, <code>docs/diagnostic-queries.md</code> and the panel build table in <code>docs/onboarding/backend-and-dashboards.md</code>.</p>
+</header>
+
+<section aria-labelledby="v">
+  <h2 id="v">Verdict</h2>
+  <div class="verdict">
+    <div class="q">
+      <div class="ask">Will it give proper observability?</div>
+      <div class="answer ok">Yes, as of revision 6</div>
+      <p>Revision 5 made the library reusable and safe but added little for incidents. Revision 6 adds detection (alerts by email, a dead man's switch, SLO burn-rate alerts) and diagnosis (tail sampling, links between traces, logs and metrics, exemplars, runbooks). At the end of phase 1, 24 of the 30 dashboard panels have data, up from 15 today.</p>
+    </div>
+    <div class="q">
+      <div class="ask">Is it achievable?</div>
+      <div class="answer warn">Yes, but slowly at current capacity</div>
+      <p>Everything is buildable on OpenTelemetry 1.17 and the pinned collector, with six facts still to verify, each with a fallback. Phase 1 is about 23.5 engineer-weeks. At the recorded 0.25 FTE that is about 22 months. Alerting arrives first, after about 5 engineer-weeks: roughly 5 months at that pace.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="s">
+  <h2 id="s">Scorecard</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Area</th><th>Rev 5</th><th>Rev 6</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Business neutrality</td><td><span class="pill p-ok">Strong</span></td><td><span class="pill p-ok">Strong</span></td><td>Core carries no KYC, NATS or CouchDB code. <code>Neutral.Api</code> proves it from M2.</td></tr>
+        <tr><td>Standards alignment</td><td><span class="pill p-ok">Strong</span></td><td><span class="pill p-ok">Strong</span></td><td>OTLP only, standard <code>OTEL_*</code> variables, semantic conventions, backend-agnostic packages.</td></tr>
+        <tr><td>Data protection</td><td><span class="pill p-ok">Strong</span></td><td><span class="pill p-ok">Strong</span></td><td>Fixes the CouchDB URL leak and covers span events, links, baggage and exemplars. A PII canary test runs end to end.</td></tr>
+        <tr><td>Detecting incidents</td><td><span class="pill p-bad">None</span></td><td><span class="pill p-ok">Good</span></td><td>Ten alerts by email from M9, including four dead man's switch states. SLO burn-rate alerts arrive in M10.</td></tr>
+        <tr><td>Diagnosing incidents</td><td><span class="pill p-warn">Thin</span></td><td><span class="pill p-ok">Good</span></td><td>Tail sampling keeps every error trace. Grafana links metric → trace → logs, and every alert links to a runbook.</td></tr>
+        <tr><td>Achievability</td><td><span class="pill p-warn">Scope risk</span></td><td><span class="pill p-warn">Capacity risk</span></td><td>About 23.5 engineer-weeks. The work is well defined; the constraint is about 0.25 FTE.</td></tr>
+        <tr><td>Testability</td><td><span class="pill p-ok">Strong</span></td><td><span class="pill p-ok">Strong</span></td><td>Tests assert on exported telemetry and on delivered alert emails, using clean consumers built from the packed <code>.nupkg</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="i">
+  <h2 id="i">One incident, before and after</h2>
+  <p>This is the demo's "fail" fault: screening exhausts its three retries and abandons the application. The API has already returned 202, so the caller sees success.</p>
+  <div class="incident">
+    <div class="run">
+      <div class="run-head"><h3>Today, and revision 5</h3><span class="pill p-bad">Customer reports it</span></div>
+      <div class="steps">
+        <div class="step bad"><div class="t">0 min</div><div class="w">Screening fails 3×, application abandoned. Counter increments; nobody is told.</div></div>
+        <div class="step bad"><div class="t">hours later</div><div class="w">Customer asks why their application never finished.</div></div>
+        <div class="step acc"><div class="t">+ minutes</div><div class="w">Support pastes the <code>correlation.id</code>; the trace shows three retries and the reason.</div></div>
+        <div class="step bad"><div class="t">in production</div><div class="w">At a 10% head sample the trace is usually gone.</div></div>
+      </div>
+    </div>
+    <div class="run">
+      <div class="run-head"><h3>After M9</h3><span class="pill p-ok">On-call is emailed</span></div>
+      <div class="steps">
+        <div class="step bad"><div class="t">0 min</div><div class="w">Screening fails 3×, application abandoned.</div></div>
+        <div class="step ok"><div class="t">≤ 5 min</div><div class="w">"Work abandoned" email: service, panel and runbook link.</div></div>
+        <div class="step ok"><div class="t">+ 1 click</div><div class="w">Runbook's first query lists abandoned workflows; tail sampling kept every one.</div></div>
+        <div class="step ok"><div class="t">+ 1 click</div><div class="w">Trace → its logs in Loki; the provider error is on the span.</div></div>
+      </div>
+    </div>
+  </div>
+  <p>M9 measures time to detect and time to diagnose for all three demo faults (slow, fail, abandon), before and after, in <code>docs/phase2/mttr-demo.md</code>.</p>
+</section>
+
+<section aria-labelledby="d">
+  <h2 id="d">The four dashboards at the end of phase 1</h2>
+  <p>These are the four dashboards in <code>docs/diagnostic-queries.md</code>, the agreed limit. Each tile is one panel. The colour is its expected state at the end of phase 1; the purple tag names the milestone that fills it. The two bars per dashboard compare today with the end of phase 1.</p>
+  <div class="legend">
+    <span class="pill p-ok">Has data today</span>
+    <span class="pill p-new">Filled in phase 1</span>
+    <span class="pill p-warn">Still partial</span>
+    <span class="pill p-bad">No source</span>
+  </div>
+
+  <div class="dash">
+    <div class="dash-head">
+      <h3>1 · Service golden signals</h3>
+      <div class="tallies">
+        <div class="tally-wrap"><span>today</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:66.7%"></span><span class="t-warn" style="width:16.7%"></span><span class="t-bad" style="width:16.6%"></span></div><span class="c">4 · 1 · 1</span></div>
+        <div class="tally-wrap"><span>after</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:66.7%"></span><span class="t-new" style="width:16.7%"></span><span class="t-bad" style="width:16.6%"></span></div><span class="c">5 · 0 · 1</span></div>
+      </div>
+    </div>
+    <div class="panels">
+      <div class="panel s-ok"><div class="top"><span class="num">1.1</span></div><div class="name">Request rate</div><div class="src">by <code>service.name</code>, <code>http.route</code></div><div class="fix">Rebuilt in Grafana (M6). Error-rate alert reads the same metric.</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">1.2</span></div><div class="name">Error rate</div><div class="src">5xx ÷ requests by route</div><div class="fix">Alert at 5% with ≥ 20 requests (M9), then availability SLO burn rate (M10).</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">1.3</span></div><div class="name">Latency p50 / p95 / p99</div><div class="src">request duration histogram</div><div class="fix">Exemplars kept: click a spike to open its trace (M9). Alert at p95 &gt; 2 s.</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">1.4</span><span class="ms">M9</span></div><div class="name">Saturation</div><div class="src">runtime + process instrumentation</div><div class="fix">Process metrics added: CPU and working set.</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">1.5</span></div><div class="name">Instances serving</div><div class="src"><code>service.instance.id</code></div><div class="fix">Containers must set the instance id or replicas collapse (C2).</div></div>
+      <div class="panel s-bad"><div class="top"><span class="num">1.6</span></div><div class="name">SQL call rate</div><div class="src">no SQL in the estate (CouchDB)</div><div class="fix">Fills itself when a SQL service exists.</div></div>
+    </div>
+  </div>
+
+  <div class="dash">
+    <div class="dash-head">
+      <h3>2 · Trace explorer</h3>
+      <div class="tallies">
+        <div class="tally-wrap"><span>today</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:85.7%"></span><span class="t-bad" style="width:14.3%"></span></div><span class="c">6 · 0 · 1</span></div>
+        <div class="tally-wrap"><span>after</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:85.7%"></span><span class="t-new" style="width:14.3%"></span></div><span class="c">7 · 0 · 0</span></div>
+      </div>
+    </div>
+    <div class="panels">
+      <div class="panel s-ok"><div class="top"><span class="num">2.1</span></div><div class="name">This trace</div><div class="src"><code>trace_id</code></div><div class="fix">Tempo, with a one-click link to its logs in Loki (M9).</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">2.2</span></div><div class="name">Every trace in a workflow</div><div class="src"><code>correlation.id</code></div><div class="fix">Helpers move to neutral core (M2).</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">2.3</span></div><div class="name">One page load</div><div class="src"><code>session.id</code></div><div class="fix">Unchanged.</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">2.4</span></div><div class="name">Message and its cause</div><div class="src"><code>message.id</code>, <code>causation.id</code></div><div class="fix">Separates redelivery from retry once JetStream lands (M10).</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">2.5</span></div><div class="name">Slowest traces for a route</div><div class="src"><code>http.route</code>, duration</div><div class="fix">Tail sampling keeps every trace over 2 s (M9).</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">2.6</span><span class="ms">M9</span></div><div class="name">Error traces kept at 100%</div><div class="src">collector tail sampling</div><div class="fix">Keeps errors, slow and abandoned traces, plus 10% of the rest.</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">2.7</span></div><div class="name">Every span for an applicant</div><div class="src"><code>application.id</code>, Class 2</div><div class="fix">Key moves to the KYC pack (M7); restricted tier per ADR-0020.</div></div>
+    </div>
+  </div>
+
+  <div class="dash">
+    <div class="dash-head">
+      <h3>3 · Async pipeline health</h3>
+      <div class="tallies">
+        <div class="tally-wrap"><span>today</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:16.7%"></span><span class="t-warn" style="width:33.3%"></span><span class="t-bad" style="width:50%"></span></div><span class="c">1 · 2 · 3</span></div>
+        <div class="tally-wrap"><span>after</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:16.7%"></span><span class="t-new" style="width:66.6%"></span><span class="t-warn" style="width:16.7%"></span></div><span class="c">5 · 1 · 0</span></div>
+      </div>
+    </div>
+    <div class="panels">
+      <div class="panel s-new"><div class="top"><span class="num">3.1</span><span class="ms">M10</span></div><div class="name">Oldest unprocessed message age</div><div class="src">JetStream consumer</div><div class="fix">The most important async signal. Feeds the completion SLO.</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">3.2</span><span class="ms">M10</span></div><div class="name">Consumer lag</div><div class="src">JetStream pending messages</div><div class="fix">Replaces the slow-consumer proxy.</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">3.3</span><span class="ms">M10</span></div><div class="name">DLQ depth and arrivals</div><div class="src">DLQ subject</div><div class="fix">Failed work lands somewhere countable instead of vanishing.</div></div>
+      <div class="panel s-warn"><div class="top"><span class="num">3.4</span></div><div class="name">Retry count</div><div class="src">span events only</div><div class="fix">Not yet planned: needs a retry counter, or JetStream redelivery count.</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">3.5</span></div><div class="name">Processing p95 / p99</div><div class="src"><code>screening.duration</code></div><div class="fix">Alert at p95 &gt; 10 s for 15 min (M9).</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">3.6</span><span class="ms">M10</span></div><div class="name">DLQ contents by workflow</div><div class="src">DLQ + <code>correlation.id</code></div><div class="fix">Each dead message traced back to its workflow.</div></div>
+    </div>
+    <div class="dash-note">This dashboard watches the failure the platform exists for: the API returns 202 and the work never finishes. It goes from one panel with data to five.</div>
+  </div>
+
+  <div class="dash">
+    <div class="dash-head">
+      <h3>4 · Stack health</h3>
+      <div class="tallies">
+        <div class="tally-wrap"><span>today</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:36.4%"></span><span class="t-warn" style="width:27.3%"></span><span class="t-bad" style="width:36.3%"></span></div><span class="c">4 · 3 · 4</span></div>
+        <div class="tally-wrap"><span>after</span><div class="tally" aria-hidden="true"><span class="t-ok" style="width:36.4%"></span><span class="t-new" style="width:27.3%"></span><span class="t-warn" style="width:36.3%"></span></div><span class="c">7 · 4 · 0</span></div>
+      </div>
+    </div>
+    <div class="panels">
+      <div class="panel s-new"><div class="top"><span class="num">4.1</span><span class="ms">M10</span></div><div class="name">Coverage, reporting ÷ expected</div><div class="src"><code>deploy/service-register.yaml</code></div><div class="fix">Also drives the "service stopped reporting" alert.</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">4.2</span><span class="ms">M10</span></div><div class="name">Freshness, ingress to queryable</div><div class="src">synthetic probe</div><div class="fix">Separates "30 seconds behind" from "20 minutes behind".</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">4.3</span></div><div class="name">Spans received / dropped</div><div class="src">collector self-scrape</div><div class="fix">Basis of the "collector stopped receiving" alert.</div></div>
+      <div class="panel s-warn"><div class="top"><span class="num">4.4</span><span class="ms">M9</span></div><div class="name">Queue depth and age</div><div class="src">depth; age if a source exists</div><div class="fix">Alert at 80% full. Age may only be a proxy (recorded in M9).</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">4.5</span></div><div class="name">Export failure rate</div><div class="src">collector self-scrape</div><div class="fix">The "stopped exporting" alert also checks sent rate = 0, which fixes the outage blind spot (finding 07).</div></div>
+      <div class="panel s-warn"><div class="top"><span class="num">4.6</span></div><div class="name">Memory, ingestion, disk</div><div class="src">no disk metric</div><div class="fix">Not planned. Tail sampling makes collector memory more important.</div></div>
+      <div class="panel s-warn"><div class="top"><span class="num">4.7</span></div><div class="name">Query latency</div><div class="src">store's own telemetry</div><div class="fix">Grafana stack's own metrics; not specified in the plan yet.</div></div>
+      <div class="panel s-warn"><div class="top"><span class="num">4.8</span></div><div class="name">Last restored backup</div><div class="src">infrastructure task</div><div class="fix">Documented with its alert in M10; the restore itself is outside this repo.</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">4.9</span></div><div class="name">Dropped attribute keys</div><div class="src"><code>raksawi.telemetry.attributes.dropped</code></div><div class="fix">Joined by the would-drop counter (M4).</div></div>
+      <div class="panel s-ok"><div class="top"><span class="num">4.10</span></div><div class="name">W3C format warnings</div><div class="src">trace-context gauge</div><div class="fix">Unchanged.</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">4.11</span><span class="ms">M9</span></div><div class="name">Dead man's switch, four states</div><div class="src">Grafana alerting</div><div class="fix">Separate emails for services, collector in, collector out and store. A daily heartbeat email covers Grafana itself.</div></div>
+      <div class="panel s-new"><div class="top"><span class="num">new</span><span class="ms">M4</span></div><div class="name">Services not at Required</div><div class="src"><code>raksawi.compliance.enforcement_mode</code></div><div class="fix">Alerts within 1 minute of a governance regression.</div></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="al">
+  <h2 id="al">Alerts at the end of M9</h2>
+  <p>All are delivered by email. These are starting values, reviewed after two weeks of real traffic. An alert that fires without anyone needing to act is changed, not muted.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Alert</th><th>Fires when</th><th>For</th><th>Later</th></tr></thead>
+      <tbody>
+        <tr><td>Work abandoned</td><td>any application abandoned</td><td class="num">5 min</td><td>stays</td></tr>
+        <tr><td>Error rate</td><td>&gt; 5% of requests fail on a route, ≥ 20 requests</td><td class="num">10 min</td><td>SLO burn rate (M10)</td></tr>
+        <tr><td>Latency</td><td>p95 &gt; 2 s on a route, ≥ 20 requests</td><td class="num">10 min</td><td>SLO burn rate (M10)</td></tr>
+        <tr><td>Screening slow</td><td>p95 screening time &gt; 10 s</td><td class="num">15 min</td><td>completion SLO (M10)</td></tr>
+        <tr><td>Services silent</td><td>a registered service stops reporting</td><td class="num">5 min</td><td>stays</td></tr>
+        <tr><td>Collector not receiving</td><td>accepted span rate = 0</td><td class="num">5 min</td><td>stays</td></tr>
+        <tr><td>Collector not exporting</td><td>sent rate = 0 or failed rate &gt; 0</td><td class="num">5 min</td><td>stays</td></tr>
+        <tr><td>Store unreachable</td><td>Grafana data source health check fails</td><td class="num">2 min</td><td>stays</td></tr>
+        <tr><td>Collector queue</td><td>&gt; 80% of capacity</td><td class="num">10 min</td><td>stays</td></tr>
+        <tr><td>Not at Required</td><td>any service below <code>Required</code> (after M4)</td><td class="num">1 min</td><td>stays</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>M10 SLOs for screening-api and screening-worker, over 28 days: 99.5% of requests succeed, 95% finish under 1 s, and 99% of applications are screened within 5 minutes. Burn-rate alerts email when 2% of the budget burns in an hour, or 5% in six hours.</p>
+</section>
+
+<section aria-labelledby="f">
+  <h2 id="f">Telemetry path after phase 1</h2>
+  <p>Dashed boxes are optional packages a service may leave out. Alerting is evaluated by Grafana, so the store alert still fires when the pipeline is down.</p>
+  <div class="flow">
+<pre class="mermaid">
+flowchart LR
+  subgraph APP[".NET 10 service"]
+    direction TB
+    CORE["Core<br/>resource · sampler 1.0 · instrumentation"]
+    NATS["Nats package"]:::opt
+    COUCH["CouchDb package<br/>URL redaction"]:::opt
+    COMP["Compliance<br/>Filter stage, Required"]:::opt
+    KYC["Kyc vocabulary"]:::opt
+    CORE --> NATS --> COUCH --> COMP
+    KYC -. declares keys .-> COMP
+  end
+  APP -- "OTLP http/protobuf :4318" --> COL
+  subgraph COL["Collector"]
+    direction TB
+    POL["generated compliance policy"] --> TAIL["tail sampling<br/>errors · slow · abandoned · 10%"]
+  end
+  COL --> TEMPO["Tempo · traces"]
+  COL --> MIMIR["Mimir · metrics"]
+  COL --> LOKI["Loki · logs"]
+  TEMPO <--> G["Grafana<br/>4 dashboards · correlations"]
+  MIMIR <--> G
+  LOKI <--> G
+  G --> AL["Alert rules<br/>M9 thresholds · M10 SLO burn"]
+  AL --> MAIL["Email<br/>runbook link"]
+  classDef opt stroke-dasharray: 5 4
+</pre>
+  </div>
+</section>
+
+<section aria-labelledby="a">
+  <h2 id="a">Achievability</h2>
+  <p>Engineer-weeks per milestone are my estimate from the size of the code each one touches, roughly ±40%. Purple rows are the observability milestones added in revision 6. Rows are in build order.</p>
+  <div class="bars" role="list">
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M0</span>ADRs and doc corrections</div><div class="track"><div class="fill" style="width:25%"></div></div><div class="weeks">1.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M1</span>CouchDB leak fix</div><div class="track"><div class="fill" style="width:12.5%"></div></div><div class="weeks">0.5 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M6</span>Grafana backend, minimal</div><div class="track"><div class="fill" style="width:25%"></div></div><div class="weeks">1.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M9</span>Detect and diagnose</div><div class="track"><div class="fill newwork" style="width:62.5%"></div></div><div class="weeks">2.5 wk</div></div>
+    <div class="mark"><span>alerting live · 5 wk</span></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M2</span>Core extraction</div><div class="track"><div class="fill" style="width:75%"></div></div><div class="weeks">3.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M3</span>NATS and CouchDB packages</div><div class="track"><div class="fill" style="width:37.5%"></div></div><div class="weeks">1.5 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M4</span>Compliance package</div><div class="track"><div class="fill" style="width:75%"></div></div><div class="weeks">3.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M5</span>Generated collector policy</div><div class="track"><div class="fill" style="width:75%"></div></div><div class="weeks">3.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M6</span>Dashboards, rest</div><div class="track"><div class="fill" style="width:25%"></div></div><div class="weeks">1.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M7</span>KYC migration and docs</div><div class="track"><div class="fill" style="width:37.5%"></div></div><div class="weeks">1.5 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M10</span>JetStream, DLQ, SLOs, register</div><div class="track"><div class="fill newwork" style="width:100%"></div></div><div class="weeks">4.0 wk</div></div>
+    <div class="bar-row" role="listitem"><div class="bar-label"><span class="mono">M8</span>Packaging and clean consumers</div><div class="track"><div class="fill" style="width:37.5%"></div></div><div class="weeks">1.5 wk</div></div>
+  </div>
+  <div class="totals">
+    <div class="stat"><div class="v">23.5 wk</div><div class="k">phase 1, one full-time engineer</div></div>
+    <div class="stat"><div class="v">≈ 22 mo</div><div class="k">phase 1 at the recorded 0.25 FTE</div></div>
+    <div class="stat"><div class="v">≈ 5 mo</div><div class="k">until alerting is live, at 0.25 FTE</div></div>
+    <div class="stat"><div class="v">6</div><div class="k">facts to verify, each with a fallback</div></div>
+  </div>
+  <p>The six facts are: whether a metric view can deny keys; the exemplar default; how to detect a prior OpenTelemetry registration; which .NET propagator carries baggage; whether the collector's OTTL reaches exemplar attributes; and whether it can re-aggregate metric points. In an earlier reply I said alerting would land "within the first two months". That holds at full time; at 0.25 FTE it is about five months.</p>
+</section>
+
+<section aria-labelledby="h">
+  <h2 id="h">What revision 6 still leaves open</h2>
+  <div class="cols">
+    <div class="box">
+      <h3>Gaps</h3>
+      <ul>
+        <li><b>Retry count (3.4)</b> needs a counter or the JetStream redelivery count. A small addition to M10.</li>
+        <li><b>Disk and query latency (4.6, 4.7)</b> have no metric chosen yet. Tail sampling makes collector memory and disk matter more.</li>
+        <li><b>Backup restore (4.8)</b> is an infrastructure task outside this repository.</li>
+        <li><b>Grafana watching itself</b> cannot report its own death. The daily heartbeat email is the only cover, and it relies on someone noticing a missing email.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Risks</h3>
+      <ul>
+        <li><b>Capacity.</b> At 0.25 FTE, phase 1 runs close to two years. More time, or an accepted slower pace, needs deciding now.</li>
+        <li><b>Thresholds are guesses.</b> There is no traffic baseline (ADR-0027). Expect to retune after two weeks.</li>
+        <li><b>Tail sampling</b> holds spans in collector memory and needs one collector per trace; more than one instance needs a trace-aware load-balancing tier.</li>
+        <li><b>Production email</b> needs an SMTP server and a recipient list before go-live; the demo uses a local mail catcher.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="c">
+  <h2 id="c">Recommended next steps</h2>
+  <ol class="changes">
+    <li><b>Decide capacity.</b> Choose between more than 0.25 FTE and the roughly 22-month pace before M2 starts.</li>
+    <li><b>Add a retry counter to M10</b> so panel 3.4 is complete. Choose disk and query-latency sources for 4.6 and 4.7 while writing M9.</li>
+    <li><b>Split the plan.</b> Move contracts C1–C5 into ADRs 0032–0040 as M0 writes them, and keep the plan as a one-page index with milestones and status.</li>
+    <li><b>Start M0 and M1 now.</b> They are small and independent, and M1 fixes a live data leak.</li>
+  </ol>
+</section>
+
+<footer>
+  <div>Sources: plan revision 6; <code>docs/diagnostic-queries.md</code>; <code>docs/onboarding/backend-and-dashboards.md</code> panel status table; <code>.scratch/dashboard-buildout/issues/</code> 04–08; ADR-0010, ADR-0013, ADR-0016, ADR-0017, ADR-0027.</div>
+  <div>"Today" counts follow the build table's per-panel status (15 with data, 6 partial, 9 none). "After" counts are the plan's intended end state at the close of phase 1, not measurements.</div>
+</footer>
+
+</div>
+
+</body>
+</html>
