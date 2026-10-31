@@ -9,6 +9,9 @@ namespace Raksawi.Observability.Tests;
 /// </summary>
 public class KycTelemetryTests : IDisposable
 {
+    private const string CorrelationId = "3f2b8c1e9d7a4b6c8e0f1a2b3c4d5e6f";
+    private const string SessionId = "6d1e2f3a-4b5c-4d6e-8f70-81920a3b4c5d";
+
     private readonly ActivitySource _source = new("Test.KycTelemetry");
     private readonly ActivityListener _listener;
 
@@ -66,8 +69,8 @@ public class KycTelemetryTests : IDisposable
         Assert.Null(Activity.Current);
 
         KycTelemetry.SetApplicationId("app-1001");
-        KycTelemetry.SetCorrelationId("corr-1");
-        KycTelemetry.SetSessionId("sess-1");
+        KycTelemetry.SetCorrelationId(CorrelationId);
+        KycTelemetry.SetSessionId(SessionId);
         KycTelemetry.SetCausationId("msg-1");
     }
 
@@ -79,14 +82,34 @@ public class KycTelemetryTests : IDisposable
         using var activity = _source.StartActivity("work");
 
         KycTelemetry.SetApplicationId("app-1001");
-        KycTelemetry.SetCorrelationId("corr-1");
-        KycTelemetry.SetSessionId("sess-1");
+        KycTelemetry.SetCorrelationId(CorrelationId);
+        KycTelemetry.SetSessionId(SessionId);
         KycTelemetry.SetCausationId("msg-1");
 
         Assert.Equal("app-1001", activity!.GetTagItem(KycTelemetry.ApplicationIdKey));
-        Assert.Equal("corr-1", activity.GetTagItem(KycTelemetry.CorrelationIdKey));
-        Assert.Equal("sess-1", activity.GetTagItem(KycTelemetry.SessionIdKey));
+        Assert.Equal(CorrelationId, activity.GetTagItem(KycTelemetry.CorrelationIdKey));
+        Assert.Equal(SessionId, activity.GetTagItem(KycTelemetry.SessionIdKey));
         Assert.Equal("msg-1", activity.GetTagItem(KycTelemetry.CausationIdKey));
+    }
+
+    /// <summary>
+    /// 🔒 Rev 3 N-D7: both arrive in request headers, so an unvalidated value
+    /// is an attribute value the caller controls — a name, an email, a
+    /// megabyte. Opaque UUIDs or nothing (ADR-0007).
+    /// </summary>
+    [Theory]
+    [InlineData("jane.doe@example.com")]
+    [InlineData("sess-1")]
+    [InlineData("0101901234")]
+    public void A_session_or_correlation_that_is_not_a_guid_is_not_recorded(string value)
+    {
+        using var activity = _source.StartActivity("work");
+
+        KycTelemetry.SetSessionId(value);
+        KycTelemetry.SetCorrelationId(value);
+
+        Assert.Null(activity!.GetTagItem(KycTelemetry.SessionIdKey));
+        Assert.Null(activity.GetTagItem(KycTelemetry.CorrelationIdKey));
     }
 
     [Fact]

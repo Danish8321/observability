@@ -31,15 +31,17 @@ public sealed class CorrelationMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context)
     {
         // Browser-minted. Absent for server-to-server callers, which is
-        // expected rather than an error.
+        // expected rather than an error. Not a GUID: KycTelemetry ignores it.
         if (context.Request.Headers.TryGetValue(SessionHeader, out var session))
         {
             KycTelemetry.SetSessionId(session.ToString());
         }
 
         // Continued if supplied, minted if this is where the workflow begins.
+        // A supplied value that is not a GUID is treated as absent (N-D7): it
+        // is echoed, stored and published downstream, not just tagged.
         var correlationId = context.Request.Headers.TryGetValue(CorrelationHeader, out var supplied)
-            && !string.IsNullOrWhiteSpace(supplied.ToString())
+            && Guid.TryParse(supplied.ToString(), out _)
                 ? supplied.ToString()
                 : KycTelemetry.NewCorrelationId();
 

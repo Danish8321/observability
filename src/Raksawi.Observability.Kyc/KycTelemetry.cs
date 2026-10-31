@@ -66,13 +66,19 @@ public static class KycTelemetry
     public static void SetApplicationId(string? applicationId) =>
         SetOnCurrentActivity(ApplicationIdKey, applicationId);
 
-    /// <summary>Attaches the workflow correlation to the current span.</summary>
+    /// <summary>
+    /// Attaches the workflow correlation to the current span. Ignored unless it
+    /// parses as a <see cref="Guid"/>.
+    /// </summary>
     public static void SetCorrelationId(string? correlationId) =>
-        SetOnCurrentActivity(CorrelationIdKey, correlationId);
+        SetGuidOnCurrentActivity(CorrelationIdKey, correlationId);
 
-    /// <summary>Attaches the browser session to the current span.</summary>
+    /// <summary>
+    /// Attaches the browser session to the current span. Ignored unless it
+    /// parses as a <see cref="Guid"/>.
+    /// </summary>
     public static void SetSessionId(string? sessionId) =>
-        SetOnCurrentActivity(SessionIdKey, sessionId);
+        SetGuidOnCurrentActivity(SessionIdKey, sessionId);
 
     /// <summary>
     /// Attaches the identifier of the message that caused this work. Set on the
@@ -87,6 +93,18 @@ public static class KycTelemetry
     /// begins — not per request and not per message.
     /// </summary>
     public static string NewCorrelationId() => Guid.NewGuid().ToString("n");
+
+    /// <remarks>
+    /// 🔒 Rev 3 N-D7, ADR-0007: these arrive in request headers, so anything
+    /// but an opaque UUID is a value the caller chose — dropped, not recorded.
+    /// </remarks>
+    private static void SetGuidOnCurrentActivity(string key, string? value)
+    {
+        if (Guid.TryParse(value, out _))
+        {
+            SetOnCurrentActivity(key, value);
+        }
+    }
 
     private static void SetOnCurrentActivity(string key, string? value)
     {
