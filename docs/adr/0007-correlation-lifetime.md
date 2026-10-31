@@ -4,7 +4,8 @@ Date: 2026-08-10
 
 ## Status
 
-Accepted
+Accepted — header names and Guid validation amended by
+[ADR-0041](./0041-each-identifier-has-its-own-header.md)
 
 ## Context
 

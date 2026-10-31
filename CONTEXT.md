@@ -66,7 +66,7 @@ instrumented by the zero-code agent has only the third.
 legitimately terminate at a queue.
 
 **Session** — one browser page load, identified by `session.id` and carried on
-the wire as `X-Correlation-Id`. Exists so that the AJAX calls of one page are
+the wire as `X-Session-Id` (ADR-0041). Exists so that the AJAX calls of one page are
 queryable together. Not a business fact.
 
 **Correlation** — one business workflow, identified by `correlation.id`. Minted

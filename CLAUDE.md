@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Governance, shared libraries, and platform config for observability (OpenTelemetry) across the Raksawi estate — .NET 10 and .NET Framework 4.8, NATS and HTTP, SQL/CouchDB. Goal is reduced MTTR, not "installed OpenTelemetry" as an end in itself.
 
-**Authority**: the observability implementation plan Rev 3 owns policy/sequencing. This repo owns execution and records decisions in `docs/adr/`. Where Rev 3 and an ADR disagree, Rev 3 wins unless the ADR states the deviation explicitly (seven such deviations, listed in `docs/adr/README.md#deviations-from-rev-3`). Nothing deviates silently.
+**Authority**: the observability implementation plan Rev 3 owns policy/sequencing. This repo owns execution and records decisions in `docs/adr/`. Where Rev 3 and an ADR disagree, Rev 3 wins unless the ADR states the deviation explicitly (nine such deviations, listed in `docs/adr/README.md#deviations-from-rev-3`). Nothing deviates silently.
 
 Read `README.md` and `CONTEXT.md` first — README for scope/shape/sequencing, CONTEXT for ubiquitous language (mechanism vs policy layer, allowlist, family, carve-out, data class, the four correlation identifiers). ADRs in `docs/adr/` are the decision record; check the index (`docs/adr/README.md`) before assuming a design choice is undocumented.
 
@@ -37,7 +37,7 @@ No CLAUDE.md-level lint/format command beyond what `check.sh` runs (`dotnet form
 
 **Three enforcement points, default deny at each** (ADR-0003, ADR-0009): analyzer at build, library before export, collector before storage. A process with none of our code has only the collector, fail-closed.
 
-**Correlation identifiers**, each a different lifetime (see CONTEXT.md "Correlation"): `trace_id` (one request, SDK-minted), `session.id` (one browser page-load, carried as `X-Correlation-Id`), `correlation.id` (one business workflow, minted at workflow start — survives across traces), `causation.id` (direct parent message — distinguishes redelivery from retry), `message.id` (unchanged by redelivery).
+**Correlation identifiers**, each a different lifetime (see CONTEXT.md "Correlation"): `trace_id` (one request, SDK-minted), `session.id` (one browser page-load, carried as `X-Session-Id` per ADR-0041), `correlation.id` (one business workflow, carried as `X-Correlation-Id`, minted at workflow start — survives across traces); both recorded only if they parse as a GUID, `causation.id` (direct parent message — distinguishes redelivery from retry), `message.id` (unchanged by redelivery).
 
 **OTLP specifics**: http/protobuf on port 4318, not gRPC (4317 closed estate-wide; gRPC unsupported on the net48 target).
 

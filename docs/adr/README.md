@@ -13,7 +13,7 @@ silently.
 | [0004](./0004-free-text-telemetry-and-exceptions.md) | Free text: interpolation banned at build, scanned at collector | Accepted |
 | [0005](./0005-enforcing-the-framework-wiring.md) | The .NET Framework wiring is enforced, not documented | Accepted; rules built after Phase 2 observation |
 | [0006](./0006-service-identity-convention.md) | Service identity: bare name plus namespace | Accepted |
-| [0007](./0007-correlation-lifetime.md) | Correlation minted at workflow start, seeded by the browser | Accepted |
+| [0007](./0007-correlation-lifetime.md) | Correlation minted at workflow start, seeded by the browser | Accepted; headers amended by 0041 |
 | [0008](./0008-service-instance-identity.md) | Service instance identity: supplied if known, derived if not | Accepted |
 | [0009](./0009-governing-agent-instrumented-services.md) | Agent services governed at the collector, fail-closed | Accepted |
 | [0010](./0010-sampling-defaults.md) | Absent sampler configuration is a production boot failure | Accepted |
@@ -38,6 +38,7 @@ silently.
 | [0029](./0029-net48-deferred-out-of-the-build.md) | .NET Framework 4.8 deferred entirely — out of the build, not merely unvalidated | Accepted — reverses 0012, deviates from Rev 3 |
 | [0030](./0030-broker-health-arrives-by-scrape.md) | Broker health arrives by scrape, in a pipeline of its own | Accepted — extends 0009, first non-OTLP path |
 | [0031](./0031-the-collector-scrapes-itself.md) | The collector scrapes itself, and is not exempt from its own allowlist | Accepted — extends 0030, implements I3.8 |
+| [0041](./0041-each-identifier-has-its-own-header.md) | Each correlation identifier has its own header | Accepted — amends 0007, deviates from Rev 3 |
 
 ## Deviations from Rev 3
 
@@ -69,13 +70,17 @@ are the places this repository knowingly differs, each argued in its own ADR:
   than behind a runtime gate. **F-I5** calls them the highest-risk services in
   the estate, and this extends the period in which they have no library-side
   control. Sequencing, not scope: 0005, 0012 and 0028 are unamended and waiting.
+- **0041** — the browser's page-load UUID travels as `X-Session-Id`, where
+  **D2.13** names `X-Correlation-Id`. That header carries the workflow's
+  `correlation.id` instead, because 0007 made them two identifiers and one
+  header cannot carry both.
 
 ## Grouping
 
 **Package shape** — 0001, 0011, 0012, 0017, 0029
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
 0026, 0028, 0030, 0031
-**Telemetry schema** — 0006, 0007, 0008
+**Telemetry schema** — 0006, 0007, 0008, 0041
 **Runtime behaviour** — 0005, 0010
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
 **Estate facts** — 0023, 0024, 0027

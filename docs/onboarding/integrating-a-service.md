@@ -181,8 +181,8 @@ incident query returns one request instead of one workflow.
 | Identifier | Lifetime | You do |
 |---|---|---|
 | `trace_id` | one request | nothing — the SDK mints it |
-| `session.id` | one browser page-load | continue from `X-Correlation-Id` if the caller sent one |
-| `correlation.id` | one **business workflow** — survives across traces | mint at workflow start if none supplied; echo it back in a response header |
+| `session.id` | one browser page-load | continue from `X-Session-Id` if the caller sent one; ignored unless a GUID |
+| `correlation.id` | one **business workflow** — survives across traces | continue from `X-Correlation-Id` if it is a GUID, else mint at workflow start; echo it back in a response header |
 | `causation.id` | the direct parent message | set on consume — this is what tells a redelivery from a retry |
 | `message.id` | the message itself, unchanged by redelivery | set on publish |
 
