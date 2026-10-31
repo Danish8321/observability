@@ -54,11 +54,12 @@ regulated customer data.*
 - Nothing is in production: no collector, no store, no service on the package.
 - One release line. Packages ship as `2.0.0-preview.N` until 2.0.0; there is no 1.x to maintain.
 - Production is **EKS**. Object storage is **S3** (one bucket per store, IAM roles for service accounts, no access keys in the cluster). Alert email goes through **Amazon SES** as Grafana's SMTP server; any SMTP relay can replace it.
+- **Infra owns the platform** (R6, 2026-10-31): EKS, S3, IAM, SES and Grafana are operated by the Infra team, and this repo has no access to them now or later. This repo writes the platform-side configuration as files and verifies it locally; Infra deploys it.
 - The only NATS service is the **screening worker** the sample models, on **.NET 10**, using core NATS publish-subscribe. JetStream is in development and not available.
-- The new project goes to production with 2.0.0. There is no staging environment, so D4 creates a **staging namespace** on the EKS cluster.
+- The new project goes to production with 2.0.0. There is no staging environment; Infra decides whether to create one. This repo's stand-in is the **local stack**: `deploy/docker-compose.yaml` running the collector, stores, Grafana and the Screening services on the preview packages.
 
 ### What counts as a deliverable
-Each one: (1) is deployed to production, or for a package is published as a prerelease and running in the staging namespace; (2) is useful if nothing after it ships; (3) can be rolled back on its own; (4) passes the checks that apply (`check.sh`, unit tests, e2e where Docker exists); (5) is at most about two engineer-weeks. A deliverable writes the ADRs it needs; there is no separate decision milestone.
+Each one: (1) for a package, is packed as a prerelease and running in the local stack; for platform configuration, is a file in `deploy/` that the local stack runs unchanged, plus a handoff note for Infra; (2) is useful if nothing after it ships; (3) can be rolled back on its own; (4) passes the checks that apply (`check.sh`, unit tests, e2e where Docker exists); (5) is at most about two engineer-weeks. A deliverable writes the ADRs it needs; there is no separate decision milestone.
 
 ### Decisions made while cutting
 | # | Decision |
@@ -68,26 +69,27 @@ Each one: (1) is deployed to production, or for a package is published as a prer
 | R3 | Each pod sets `OTEL_SERVICE_INSTANCE_ID` from its pod name; the collector adds Kubernetes metadata (namespace, pod, node), all inside the allowed resource families |
 | R4 | Core NATS: visibility comes from broker metrics and in-process traces. Panels 3.1, 3.3 and 3.6 are marked "needs JetStream"; JetStream visibility is parked until JetStream exists in the service |
 | R5 | Staging telemetry goes to the production stack tagged `deployment.environment.name=staging`; alert rules ignore staging except where a deliverable says otherwise |
+| R6 | Infra owns the platform. Wherever a deliverable below said "production" or "staging", this repo's part ends at configuration files verified in the local stack and a handoff note in `deploy/HANDOFF.md`; deploying them, and the production checks (restore from S3, real SES email, MTTR baseline), are Infra's. R2–R5 stand as recommendations to Infra |
 
 ### The deliverables
 
 | # | Deliverable | Draws on | Lands in | Done when | Size |
 |---|---|---|---|---|---|
 | D1 | CouchDB URL leak fix (C5 verification record); session-header GUID check; header ADR (R1) | M1 | `2.0.0-preview.1` | failing-first tests pass on exported telemetry; ADR merged | ~1 wk |
-| D2 | Production stack on EKS: collector gateway (persistent queue, self-scrape, k8s metadata), Tempo/Loki/Mimir on S3, Grafana, ADR-0037 (Grafana ahead of the bake-off) | M6-min | production | data sources healthy; a synthetic OTLP payload is queryable in all three stores; restore of one store from S3 tried once | ~2 wk |
-| D3 | Email alerting through SES: the four dead-man's-switch alerts, collector queue, daily heartbeat; runbooks for each; ADR-0040 (part 1) | M9 | production | stopping the collector, its exporter and a store each delivers its own email; heartbeat arrives | ~1.5 wk |
-| D4 | Staging namespace running Screening API, worker, NATS and CouchDB on preview packages; tail sampling (ADR-0039); Grafana trace↔log↔metric links; exemplars; service alerts (abandoned, error rate, latency, screening slow) | M9 | staging + production stack | each demo fault produces its email; error and abandoned traces kept at 100% under a 10% base rate; an exemplar opens its trace; MTTR baseline recorded | ~2 wk |
-| D5 | NATS publish-subscribe visibility: exporter on EKS, broker panels, slow-consumer and delivery-gap alerts | M6, M9 | production stack | slow consumer induced in staging emails; panels 3.2 and 3.4 show data or are recorded as not available on core NATS | ~1 wk |
-| D6a | Neutral core, vertical slice: one-line registration, ASP.NET Core instrumentation, OTLP export, `Neutral.Api`, local-feed smoke; ADR-0032 | M2 | `preview.2`, staging | `Neutral.Api` exports from staging with no NATS, CouchDB or compliance code loaded | ~1.5 wk |
-| D6b | Core contracts: C1 contributions and stages, C2 configuration resolution and the `OTEL_*` table, resource identity, governance capability; ADRs 0034, 0035, 0038 | M2 | `preview.3`, staging | every C1/C2 test passes on exported telemetry; contracts frozen | ~1.5 wk |
-| D7 | NATS and CouchDB integration packages; ADR-0033 | M3 | `preview.4`, staging | Screening runs on them in staging; mixed-case host and rewrite cases never export a raw URL | ~1.5 wk |
-| D8a | Compliance add-on, spans and logs: catalog, processors, enforcement mode, `Governance:Required`, baggage off | M4 | `preview.5`, staging | Screening in staging runs `Required`; governance fails startup when uncovered; PII canary absent | ~1.5 wk |
-| D8b | Compliance surfaces: span events and links, exemplar safety, analyzer packed in the nupkg; KYC vocabulary pack; Screening migrated; surface table published | M4, M7 | `preview.6`, staging | every surface-table row Verified or an accepted limitation; analyzer fires in a clean consumer | ~1.5 wk |
-| D9a | Collector policy generator: catalog, three input adapters, reproduces today's hand-written policy byte for byte; ADR-0036 | M5 | production collector | generated file equals the current one; contract tests switched | ~1.5 wk |
-| D9b | Generated policy goes semantic: OTLP fixture tests, metric re-aggregation table, exemplar attributes, the ADR-0004 log-body scan | M5 | production collector | every merge-table row passes on value assertions; canary absent after the collector | ~1.5 wk |
-| D10 | SLOs for screening-api and screening-worker, burn-rate alert rules defined and exercised on replayed fixtures; ADR-0040 (part 2) | M10 | production (rules), tuned after go-live | rules evaluate correctly on fixtures; targets documented as provisional | ~1.5 wk |
-| D11 | Service register file and the coverage panel; "service stopped reporting" alert reads it; freshness probe | M10 | production | removing a registered service from staging emails within 5 minutes | ~1 wk |
-| D12 | **2.0.0**: packaging metadata, central package management, clean consumers from the packed nupkg, migration notes; the new project and the screening services go to production | M8 | production | both clean consumers pass; first production services report and every alert has been seen to fire at least once in staging | ~1.5 wk |
+| D2 | Platform configuration for Infra: collector gateway (persistent queue, self-scrape, k8s metadata), Tempo/Loki/Mimir with S3 settings, Grafana data sources; ADR-0037 (Grafana ahead of the bake-off) | M6-min | `deploy/` + handoff | the local stack runs the same files; data sources healthy; a synthetic OTLP payload is queryable in all three stores | ~1.5 wk |
+| D3 | Alerting as code: the four dead-man's-switch alerts, collector queue, daily heartbeat, SMTP contact point; runbooks for each; ADR-0040 (part 1) | M9 | `deploy/` + handoff | in the local stack, stopping the collector, its exporter and a store each delivers its own email to a local SMTP sink; heartbeat arrives | ~1.5 wk |
+| D4 | Local stack running Screening API, worker, NATS and CouchDB on preview packages; tail sampling (ADR-0039); Grafana trace↔log↔metric links; exemplars; service alerts (abandoned, error rate, latency, screening slow) | M9 | `deploy/` + handoff | each demo fault produces its email locally; error and abandoned traces kept at 100% under a 10% base rate; an exemplar opens its trace | ~2 wk |
+| D5 | NATS publish-subscribe visibility: exporter configuration, broker panels, slow-consumer and delivery-gap alerts | M6, M9 | `deploy/` + handoff | slow consumer induced locally emails; panels 3.2 and 3.4 show data or are recorded as not available on core NATS | ~1 wk |
+| D6a | Neutral core, vertical slice: one-line registration, ASP.NET Core instrumentation, OTLP export, `Neutral.Api`, local-feed smoke; ADR-0032 | M2 | `preview.2`, local stack | `Neutral.Api` exports in the local stack with no NATS, CouchDB or compliance code loaded | ~1.5 wk |
+| D6b | Core contracts: C1 contributions and stages, C2 configuration resolution and the `OTEL_*` table, resource identity, governance capability; ADRs 0034, 0035, 0038 | M2 | `preview.3`, local stack | every C1/C2 test passes on exported telemetry; contracts frozen | ~1.5 wk |
+| D7 | NATS and CouchDB integration packages; ADR-0033 | M3 | `preview.4`, local stack | Screening runs on them in the local stack; mixed-case host and rewrite cases never export a raw URL | ~1.5 wk |
+| D8a | Compliance add-on, spans and logs: catalog, processors, enforcement mode, `Governance:Required`, baggage off | M4 | `preview.5`, local stack | Screening in the local stack runs `Required`; governance fails startup when uncovered; PII canary absent | ~1.5 wk |
+| D8b | Compliance surfaces: span events and links, exemplar safety, analyzer packed in the nupkg; KYC vocabulary pack; Screening migrated; surface table published | M4, M7 | `preview.6`, local stack | every surface-table row Verified or an accepted limitation; analyzer fires in a clean consumer | ~1.5 wk |
+| D9a | Collector policy generator: catalog, three input adapters, reproduces today's hand-written policy byte for byte; ADR-0036 | M5 | `deploy/` + handoff | generated file equals the current one; contract tests switched | ~1.5 wk |
+| D9b | Generated policy goes semantic: OTLP fixture tests, metric re-aggregation table, exemplar attributes, the ADR-0004 log-body scan | M5 | `deploy/` + handoff | every merge-table row passes on value assertions; canary absent after the collector | ~1.5 wk |
+| D10 | SLOs for screening-api and screening-worker, burn-rate alert rules defined and exercised on replayed fixtures; ADR-0040 (part 2) | M10 | `deploy/` + handoff; Infra tunes after go-live | rules evaluate correctly on fixtures; targets documented as provisional | ~1.5 wk |
+| D11 | Service register file and the coverage panel; "service stopped reporting" alert reads it; freshness probe | M10 | `deploy/` + handoff | stopping a registered service in the local stack emails within 5 minutes | ~1 wk |
+| D12 | **2.0.0**: packaging metadata, central package management, clean consumers from the packed nupkg, migration notes; complete handoff to Infra | M8 | `2.0.0` + handoff | both clean consumers pass; every alert has been seen to fire at least once in the local stack; Infra has accepted the handoff | ~1.5 wk |
 
 Total about 23 engineer-weeks (estimate, ±40%), the same work as revision 6 cut differently.
 
@@ -96,7 +98,8 @@ D1 → D2 → D3 → D4 → D5 → D6a → D6b → (D7 ∥ D8a ∥ D9a) → D8b 
 - D2–D5 need no package change, so detection exists before the refactor starts.
 - D6b freezes the contracts D7, D8a and D9a build on; they start only after it.
 - D9a may start as soon as D6b lands, because it first only has to reproduce today's file.
-- From D4 onward, every deliverable keeps every existing alert green in staging.
+- From D4 onward, every deliverable keeps every existing alert green in the local stack.
+- The local stack needs a running Docker daemon; `e2e*.sh` fail rather than skip without one.
 
 ### Parked
 - JetStream visibility (oldest message age, backlog, DLQ), when JetStream exists in the screening worker.
