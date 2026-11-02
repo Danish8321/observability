@@ -1,0 +1,11 @@
+{
+  "identities": [
+    {
+      "name": "local-stack",
+      "credentials": [
+        { "accessKey": "local-stack-access-key", "secretKey": "local-stack-secret-key" }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

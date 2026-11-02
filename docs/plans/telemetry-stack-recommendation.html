@@ -1,0 +1,424 @@
+<title>Raksawi Telemetry Stack</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one reading column; each store is a section with a with/without pair side by side, stacking on phones. */
+  :root {
+    --bg: #f6f7f8;
+    --surface: #ffffff;
+    --fg: #1b2228;
+    --muted: #59656f;
+    --rule: #d9dee3;
+    --accent: #0f6e76;
+    --code-bg: #eef1f3;
+    --traces: #7a4cc2;
+    --logs: #b26a00;
+    --metrics: #0f6e76;
+    --good: #2f7d32;
+    --warn: #a35a00;
+    --bad: #b3261e;
+    --good-bg: #e7f3e8;
+    --warn-bg: #fbf0e1;
+    --bad-bg: #fbe9e8;
+    --info-bg: #e3f1f2;
+    --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12171b; --surface: #192026; --fg: #e3e8ec; --muted: #9aa6b0; --rule: #2c353d;
+      --accent: #4fb8c0; --code-bg: #0e1316;
+      --traces: #b196e8; --logs: #e3a54a; --metrics: #4fb8c0;
+      --good: #7cc47f; --warn: #e3a54a; --bad: #f08a83;
+      --good-bg: #17291a; --warn-bg: #2d2214; --bad-bg: #2e1715; --info-bg: #13292b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12171b; --surface: #192026; --fg: #e3e8ec; --muted: #9aa6b0; --rule: #2c353d;
+    --accent: #4fb8c0; --code-bg: #0e1316;
+    --traces: #b196e8; --logs: #e3a54a; --metrics: #4fb8c0;
+    --good: #7cc47f; --warn: #e3a54a; --bad: #f08a83;
+    --good-bg: #17291a; --warn-bg: #2d2214; --bad-bg: #2e1715; --info-bg: #13292b;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 64px;
+  }
+  .page { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+  .prose { max-width: 68ch; }
+  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+  h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 1.6rem; font-weight: 600; }
+  h3 { font-size: 1.15rem; font-weight: 600; }
+  p { margin: 0; }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .eyebrow {
+    font: 600 0.75rem/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  }
+  .lede { font-size: 1.1rem; color: var(--muted); }
+  code, pre { font-family: var(--font-mono); font-size: 0.85rem; }
+  :not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 12px 14px; margin: 0; overflow-x: auto; line-height: 1.5;
+  }
+  pre .c { color: var(--muted); }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { font: 600 0.75rem/1.2 var(--font-body); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+  .signal { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+  .signal::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
+  .s-traces { color: var(--traces); }
+  .s-logs { color: var(--logs); }
+  .s-metrics { color: var(--metrics); }
+  .s-all { color: var(--muted); }
+
+  .pill {
+    display: inline-block; font: 600 0.72rem/1 var(--font-body); letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 5px 8px; border-radius: 999px; white-space: nowrap;
+  }
+  .p-infra { background: var(--info-bg); color: var(--accent); }
+  .p-add { background: var(--good-bg); color: var(--good); }
+  .p-opt { background: var(--warn-bg); color: var(--warn); }
+  .p-no { background: var(--bad-bg); color: var(--bad); }
+
+  .flow { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); padding: 16px; }
+  .flow svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  .flow text { font-family: var(--font-body); fill: var(--fg); }
+  .flow .sub { fill: var(--muted); font-size: 11px; }
+
+  .component { border-top: 2px solid var(--rule); padding-top: 24px; }
+  .component-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .pair > div { min-width: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .pair .label { font: 600 0.75rem/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; }
+  .with .label { color: var(--good); }
+  .without .label { color: var(--bad); }
+  ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 24px; font-size: 0.95rem; }
+  .facts div { min-width: 0; }
+  .facts b { display: block; font: 600 0.72rem/1.4 var(--font-body); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .note {
+    border-left: 3px solid var(--warn); background: var(--warn-bg); padding: 12px 14px; border-radius: 0 6px 6px 0; font-size: 0.95rem;
+  }
+  .example-tag { font: 500 0.72rem/1 var(--font-mono); color: var(--muted); }
+  ol.questions { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 8px; }
+  footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 16px; }
+</style>
+
+<div class="page">
+
+  <header class="prose" style="display:flex;flex-direction:column;gap:12px">
+    <span class="eyebrow">Proposal for Infra · 2026-11-01 · observability repo, plan R6</span>
+    <h1>Raksawi Telemetry Stack</h1>
+    <p class="lede">Infra proposed Grafana, Loki and ClickHouse. This page checks that stack against what the screening services actually emit, recommends one addition we consider required, and lists the optional pieces with what each one buys.</p>
+  </header>
+
+  <section>
+    <h2>The recommendation</h2>
+    <p class="prose">Every service emits OpenTelemetry over OTLP (http/protobuf, port 4318) to one collector, which applies the attribute allowlist before anything is stored. Nothing below changes service code. The choice is only where each signal is stored and how it is read.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Component</th><th>Signal</th><th>Status</th><th>Licence</th></tr></thead>
+        <tbody>
+          <tr><td><b>Grafana</b>: dashboards and alerting</td><td><span class="signal s-all">All</span></td><td><span class="pill p-infra">Infra pick</span></td><td>AGPLv3</td></tr>
+          <tr><td><b>Loki</b>: log store</td><td><span class="signal s-logs">Logs</span></td><td><span class="pill p-infra">Infra pick</span></td><td>AGPLv3</td></tr>
+          <tr><td><b>ClickHouse</b>: trace store</td><td><span class="signal s-traces">Traces</span></td><td><span class="pill p-infra">Infra pick</span></td><td>Apache 2.0</td></tr>
+          <tr><td><b>Grafana ClickHouse plugin</b></td><td><span class="signal s-traces">Traces</span></td><td><span class="pill p-add">Required with ClickHouse</span></td><td>Apache 2.0</td></tr>
+          <tr><td><b>Mimir</b>: metrics store (PromQL)</td><td><span class="signal s-metrics">Metrics</span></td><td><span class="pill p-add">We add: required</span></td><td>AGPLv3</td></tr>
+          <tr><td><b>Tail sampling</b>: a collector processor, not a package</td><td><span class="signal s-traces">Traces</span></td><td><span class="pill p-add">We add: required</span></td><td>Apache 2.0</td></tr>
+          <tr><td><b>Blackbox exporter</b>: external probes</td><td><span class="signal s-metrics">Metrics</span></td><td><span class="pill p-add">We add: recommended</span></td><td>Apache 2.0</td></tr>
+          <tr><td><b>Pyroscope</b>: continuous profiling</td><td><span class="signal s-all">Profiles</span></td><td><span class="pill p-opt">Later</span></td><td>AGPLv3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flow" role="img" aria-label="Services send OTLP to the collector, which applies the allowlist and tail sampling, then sends logs to Loki, traces to ClickHouse and metrics to Mimir. Grafana reads all three. The blackbox exporter and the NATS exporter are scraped by the collector.">
+      <svg viewBox="0 0 900 250" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="var(--rule)" stroke-width="1.5">
+          <rect x="10" y="30" width="170" height="90" rx="6" fill="var(--surface)"/>
+          <rect x="10" y="150" width="170" height="70" rx="6" fill="var(--surface)"/>
+          <rect x="250" y="70" width="190" height="110" rx="6" fill="var(--surface)" stroke="var(--accent)"/>
+          <rect x="520" y="20" width="160" height="56" rx="6" fill="var(--surface)" stroke="var(--logs)"/>
+          <rect x="520" y="97" width="160" height="56" rx="6" fill="var(--surface)" stroke="var(--traces)"/>
+          <rect x="520" y="174" width="160" height="56" rx="6" fill="var(--surface)" stroke="var(--metrics)"/>
+          <rect x="750" y="90" width="140" height="70" rx="6" fill="var(--surface)"/>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr)">
+          <path d="M180 75 L248 110"/>
+          <path d="M180 185 L248 150"/>
+          <path d="M440 105 L518 50"/>
+          <path d="M440 125 L518 125"/>
+          <path d="M440 145 L518 200"/>
+          <path d="M680 48 L748 110"/>
+          <path d="M680 125 L748 125"/>
+          <path d="M680 202 L748 140"/>
+        </g>
+        <text x="24" y="56" font-size="14" font-weight="600">screening-api</text>
+        <text x="24" y="76" font-size="14" font-weight="600">screening-worker</text>
+        <text x="24" y="100" class="sub">OTLP http/protobuf :4318</text>
+        <text x="24" y="176" font-size="14" font-weight="600">NATS exporter</text>
+        <text x="24" y="196" font-size="14" font-weight="600">Blackbox exporter</text>
+        <text x="24" y="212" class="sub">scraped by the collector</text>
+        <text x="264" y="98" font-size="14" font-weight="600">OTel collector</text>
+        <text x="264" y="120" class="sub">allowlist (ADR-0009)</text>
+        <text x="264" y="138" class="sub">tail sampling</text>
+        <text x="264" y="156" class="sub">persistent queue per store</text>
+        <text x="534" y="45" font-size="14" font-weight="600">Loki</text>
+        <text x="534" y="63" class="sub">logs · S3</text>
+        <text x="534" y="122" font-size="14" font-weight="600">ClickHouse</text>
+        <text x="534" y="140" class="sub">traces · SQL</text>
+        <text x="534" y="199" font-size="14" font-weight="600">Mimir</text>
+        <text x="534" y="217" class="sub">metrics · PromQL · S3</text>
+        <text x="764" y="120" font-size="14" font-weight="600">Grafana</text>
+        <text x="764" y="140" class="sub">dashboards, alerts</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the data looks like today</h2>
+    <p class="prose">Every example below uses names the reference services already emit. Identifier values are made-up examples.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Signal</th><th>Real names in the current code</th></tr></thead>
+        <tbody>
+          <tr><td><span class="signal s-traces">Traces</span></td><td>Span <code>screen application</code> (worker), NATS producer/consumer spans, CouchDB HTTP spans with redacted <code>url.full</code>, event <code>screening.retry</code>. Attributes <code>application.id</code>, <code>correlation.id</code>, <code>session.id</code>, <code>causation.id</code>, <code>screening.outcome</code></td></tr>
+          <tr><td><span class="signal s-metrics">Metrics</span></td><td><code>screening.applications.screened</code> by <code>outcome</code> (Clear, Referred) · <code>screening.duration</code> histogram in seconds · <code>screening.applications.abandoned</code> · <code>raksawi.telemetry.attributes.dropped</code> by key · NATS <code>gnatsd_varz_*</code> · collector <code>otelcol_*</code></td></tr>
+          <tr><td><span class="signal s-logs">Logs</span></td><td>Structured worker logs (ADR-0004: never interpolated), carrying <code>application.id</code> and <code>correlation.id</code> as properties, filtered by the in-process log allowlist</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="component">
+    <div class="component-head"><h2>Loki for logs</h2><span class="pill p-infra">Infra pick</span><span class="signal s-logs">Logs</span></div>
+    <p class="prose">Indexes only a few labels and keeps the log text in compressed chunks on S3. Ingests OTLP natively at <code>/otlp/v1/logs</code>, so the collector needs no special exporter. We agree with this pick.</p>
+    <div class="pair">
+      <div class="with">
+        <span class="label">With it</span>
+        <p>Every log line from one screening workflow, across the API and the worker:</p>
+        <pre><span class="c"># LogQL · example correlation id</span>
+{service_name=~"screening-api|screening-worker"}
+  | correlation_id = "3f2b8c1e9d7a4b6c8e0f1a2b3c4d5e6f"</pre>
+        <ul>
+          <li>The cheapest store per GB of the options, because the text is not indexed.</li>
+          <li>OTLP attributes are kept as structured metadata, so <code>correlation_id</code> filters without becoming an index label.</li>
+        </ul>
+      </div>
+      <div class="without">
+        <span class="label">Watch out for</span>
+        <ul>
+          <li>Full-text search over long windows is slow by design. Queries should start from a service and a time range, as the diagnostic specs do.</li>
+          <li><code>application.id</code> must never become a Loki <em>label</em>: one label per applicant creates one stream each and degrades the store. Keep it as structured metadata, the same rule as for metric dimensions.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="component">
+    <div class="component-head"><h2>ClickHouse for traces</h2><span class="pill p-infra">Infra pick</span><span class="signal s-traces">Traces</span></div>
+    <p class="prose">A column store queried with SQL. The collector writes spans with its <code>clickhouse</code> exporter into an <code>otel_traces</code> table, and Grafana reads them through the ClickHouse plugin, which includes a trace viewer. We agree with this pick for traces.</p>
+    <div class="pair">
+      <div class="with">
+        <span class="label">With it</span>
+        <p>The incident question "how many screenings failed, how slow were they, and how many retried", in one query:</p>
+        <pre><span class="c">-- ClickHouse SQL · default exporter schema</span>
+SELECT toStartOfHour(Timestamp)          AS hour,
+       countIf(StatusCode = 'Error')     AS failed,
+       quantile(0.95)(Duration) / 1e9    AS p95_s,
+       countIf(has(Events.Name, 'screening.retry')) AS retried
+FROM otel_traces
+WHERE ServiceName = 'screening-worker'
+  AND SpanName = 'screen application'
+  AND Timestamp > now() - INTERVAL 1 DAY
+GROUP BY hour ORDER BY hour</pre>
+        <ul>
+          <li>Any span attribute can be filtered and aggregated, e.g. diagnostic query 2.7: <code>WHERE SpanAttributes['application.id'] = '…'</code>.</li>
+          <li>Apache 2.0 licence. Infra already plans to run it.</li>
+        </ul>
+      </div>
+      <div class="without">
+        <span class="label">Watch out for</span>
+        <ul>
+          <li>A ClickHouse cluster has to be operated: replication, ClickHouse Keeper, disk, and retention through table TTLs.</li>
+          <li>The table schema belongs to the exporter version. Pin the collector version and read the schema before writing dashboards against it.</li>
+          <li>Links from a log line or a metric to its trace have to be configured by hand in Grafana. With Tempo they come built in.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="prose"><b>Alternative considered: Grafana Tempo.</b> Tempo is cheaper (it stores only on S3) and links natively to Loki and Mimir, but it is weaker at ad-hoc aggregate questions like the one above. Both are good choices, and we accept Infra's.</p>
+  </section>
+
+  <section class="component">
+    <div class="component-head"><h2>Mimir for metrics</h2><span class="pill p-add">We add: required</span><span class="signal s-metrics">Metrics</span></div>
+    <p class="prose">A long-term Prometheus store on S3, queried with PromQL. Ingests OTLP at <code>/otlp/v1/metrics</code>. This is the one gap in the proposed stack: the plan's alerting, SLOs and NATS monitoring are all built in PromQL.</p>
+    <div class="pair">
+      <div class="with">
+        <span class="label">With it</span>
+        <p>Screening p95 and the abandoned-application alert, as standard PromQL:</p>
+        <pre><span class="c"># p95 screening time, seconds</span>
+histogram_quantile(0.95,
+  sum by (le) (rate(screening_duration_seconds_bucket[5m])))
+
+<span class="c"># alert: any application abandoned in 10 minutes</span>
+sum(increase(screening_applications_abandoned_total[10m])) > 0
+
+<span class="c"># NATS: a consumer is falling behind</span>
+increase(gnatsd_varz_slow_consumers[5m]) > 0</pre>
+        <ul>
+          <li>The NATS exporter and the collector's own health metrics are already Prometheus-native, so their dashboards and alerts drop straight in.</li>
+          <li>Exemplars: click a spike in <code>screening.duration</code> and open the trace that caused it (plan D4).</li>
+          <li>Burn-rate SLO alerts (plan D10) are standard, well-tested PromQL patterns.</li>
+          <li>Runs the same way as Loki (same vendor, same S3 layout), so Infra operates one pattern, not two.</li>
+        </ul>
+      </div>
+      <div class="without">
+        <span class="label">Without it (metrics in ClickHouse)</span>
+        <p>The same p95 becomes hand-written SQL over histogram buckets:</p>
+        <pre><span class="c">-- every panel and alert is written like this</span>
+SELECT toStartOfFiveMinutes(TimeUnix) AS t,
+       arrayJoin(arrayZip(ExplicitBounds,
+         arrayPopBack(BucketCounts))) AS b
+       ... /* cumulative sum, rate, interpolation */
+FROM otel_metrics_histogram
+WHERE MetricName = 'screening.duration'</pre>
+        <ul>
+          <li>No PromQL, so no recording rules and none of the existing alert or dashboard libraries.</li>
+          <li>SLO burn-rate alerting has to be built from scratch.</li>
+          <li>The collector's ClickHouse exporter is less mature for metrics than for traces and logs.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="prose"><b>Alternatives considered.</b> VictoriaMetrics (Apache 2.0) is simpler and lighter to run, but its exemplar support is uncertain, and plan D4 needs exemplars. Prometheus alone keeps data on local disk, which does not suit long retention.</p>
+  </section>
+
+  <section class="component">
+    <div class="component-head"><h2>Tail sampling</h2><span class="pill p-add">We add: required</span><span class="signal s-traces">Traces</span></div>
+    <p class="prose">A processor in the collector, not a new package. It decides what to keep once a whole trace has arrived, so it can keep every trace that matters and sample the rest (plan D4, ADR-0039).</p>
+    <div class="pair">
+      <div class="with">
+        <span class="label">With it</span>
+        <pre><span class="c"># collector · tail_sampling policies</span>
+- name: errors
+  type: status_code
+  status_code: { status_codes: [ERROR] }
+- name: slow-screening
+  type: latency
+  latency: { threshold_ms: 2000 }
+- name: baseline
+  type: probabilistic
+  probabilistic: { sampling_percentage: 10 }</pre>
+        <ul>
+          <li>Every failed or abandoned screening is kept at 100%, at about a tenth of the storage.</li>
+        </ul>
+      </div>
+      <div class="without">
+        <span class="label">Without it</span>
+        <ul>
+          <li>Either every trace is stored, so ClickHouse grows linearly with traffic, or head sampling keeps a random 10% and drops 90% of the failures you would investigate.</li>
+          <li><b>Cost of having it:</b> with more than one collector replica, spans of one trace must reach the same replica, which means a load-balancing exporter tier in front.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="component">
+    <div class="component-head"><h2>Blackbox exporter</h2><span class="pill p-add">We add: recommended</span><span class="signal s-metrics">Metrics</span></div>
+    <p class="prose">Probes endpoints from outside the service and reports up/down and latency as metrics.</p>
+    <div class="pair">
+      <div class="with">
+        <span class="label">With it</span>
+        <pre><span class="c"># alert: screening-api health check failing</span>
+probe_success{job="blackbox", instance="screening-api"} == 0</pre>
+        <ul>
+          <li>Catches the failure that sends no telemetry at all: a crashed service. This powers plan D11's freshness probe.</li>
+          <li>Small: one container and a list of targets.</li>
+        </ul>
+      </div>
+      <div class="without">
+        <span class="label">Without it</span>
+        <ul>
+          <li>If the worker dies, <code>screening_applications_abandoned_total</code> stays flat at zero, which looks perfectly healthy. Only the absence of data reveals it, and absence is easy to miss.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="component">
+    <div class="component-head"><h2>Pyroscope</h2><span class="pill p-opt">Later</span><span class="signal s-all">Profiles</span></div>
+    <p class="prose">Continuous CPU and memory profiling, linked from a slow span to the code that was running.</p>
+    <div class="pair">
+      <div class="with">
+        <span class="label">With it</span>
+        <p><span class="example-tag">illustration</span> The trace shows <code>screen application</code> spending 3s inside the worker with no child spans. The profile for that window shows which method was burning the time.</p>
+      </div>
+      <div class="without">
+        <span class="label">Without it</span>
+        <ul>
+          <li>Traces show <em>where</em> time went, but not <em>why</em> inside one process.</li>
+          <li><b>Cost:</b> a .NET profiler agent (roughly 2–5% overhead) and a fourth store. Revisit once logs, traces and metrics are in production.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Not recommended</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill p-no">No</span> Metrics in ClickHouse</td><td>Loses PromQL, recording rules and SLO tooling; see the Mimir section above.</td></tr>
+          <tr><td><span class="pill p-no">No</span> Grafana OnCall OSS</td><td>In maintenance mode and being archived. Use Grafana alerting with email, Slack or a webhook.</td></tr>
+          <tr><td><span class="pill p-no">No</span> Jaeger UI, separate Alertmanager</td><td>Duplicates what Grafana already does.</td></tr>
+          <tr><td><span class="pill p-no">No</span> SigNoz in production</td><td>Our current demo backend. It is ClickHouse plus its own UI, so it competes with Grafana instead of adding to it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Trade-off to accept</h2>
+    <p class="prose">Traces in ClickHouse and metrics in Mimir means Grafana's jumps between signals are configured, not built in. It is a one-off cost of a few settings: a Loki derived field turning <code>trace_id</code> into a link to the ClickHouse data source, and Mimir exemplars pointing at the same data source.</p>
+  </section>
+
+  <section>
+    <h2>Questions for Infra</h2>
+    <ol class="questions prose">
+      <li>Is ClickHouse for traces only, or did you also intend it for metrics or logs?</li>
+      <li>Will you run Mimir (or another PromQL store) for metrics?</li>
+      <li>Who runs the OpenTelemetry collector, and will it run our allowlist policy file unmodified? It is one of our three enforcement points (ADR-0009).</li>
+      <li>Alert delivery: SES, another SMTP relay, or a paging tool?</li>
+      <li>Do you want dashboards and alert rules from us as files (Grafana JSON and YAML), or will you build them?</li>
+      <li>Retention for each signal, and do you want the blackbox exporter and Pyroscope?</li>
+    </ol>
+  </section>
+
+  <div class="note prose">
+    <b>Not verified for this page:</b> the ClickHouse exporter's current stability level and exact table schema, VictoriaMetrics' exemplar support, and Grafana OnCall's archive status. These came from memory and should be checked before a decision is recorded. The metric names in the PromQL examples assume the standard OTLP-to-Prometheus name translation.
+  </div>
+
+  <footer>Source: <code>docs/plans/neutral-observability-plan.md</code> (R6, D2–D11), <code>docs/diagnostic-queries.md</code>, and the Screening reference services in <code>samples/</code>. The decision will be recorded as ADR-0037 once Infra confirms.</footer>
+</div>

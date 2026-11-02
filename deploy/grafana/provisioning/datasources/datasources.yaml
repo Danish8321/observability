@@ -1,0 +1,22 @@
+# Data sources, provisioned from file rather than clicked together, so the
+# local stack and production read the same definitions (plan R6). URLs come
+# from the environment; uids are fixed because dashboards and alert rules
+# reference them.
+#
+# No trace data source yet: Infra has not chosen the trace store (ClickHouse or
+# Tempo). Traces stay in SigNoz until then.
+apiVersion: 1
+
+datasources:
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    url: ${MIMIR_URL}
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    uid: loki
+    type: loki
+    url: ${LOKI_URL}
+    editable: false

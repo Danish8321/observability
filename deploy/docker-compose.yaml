@@ -1,9 +1,24 @@
-# Demo infrastructure: NATS, CouchDB, and the collector.
+# The local stack: NATS, CouchDB, the collector, and the stores behind it —
+# Loki (logs), Mimir (metrics), Grafana, and SeaweedFS standing in for S3.
+# The store and collector config files are the ones handed to Infra (plan R6,
+# deploy/HANDOFF.md); only the environment below is local.
 #
-# SigNoz is NOT here — it ships its own compose file and duplicating it would
-# drift. Start SigNoz separately, then this alongside it.
+# Traces still go to SigNoz until Infra chooses the trace store. SigNoz is NOT
+# here — it ships its own compose file and duplicating it would drift. Start it
+# separately if you need traces; everything else runs without it.
 #
-# 🔒 Dummy data only. No allowlist enforcement exists yet (ADR-0022).
+# 🔒 Dummy data only (ADR-0022).
+
+# S3 settings shared by every store. The keys match seaweedfs/s3.json and exist
+# only here; in production the pod's IAM role supplies credentials instead.
+x-s3-env: &s3-env
+  S3_ENDPOINT: seaweedfs-s3:8333
+  S3_REGION: us-east-1
+  S3_INSECURE: "true"
+  S3_FORCE_PATH_STYLE: "true"
+  S3_BUCKET_LOOKUP_TYPE: path
+  AWS_ACCESS_KEY_ID: local-stack-access-key
+  AWS_SECRET_ACCESS_KEY: local-stack-secret-key
 
 services:
   nats:
@@ -35,6 +50,101 @@ services:
     volumes:
       - couchdb-data:/opt/couchdb/data
 
+  # Local S3. One bucket per store, as in production (plan, starting point).
+  # Master, volume and filer here; the S3 gateway is its own service below.
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.97
+    command: ["server", "-dir=/data", "-filer"]
+    volumes:
+      - seaweedfs-data:/data
+
+  # Neither Loki nor Mimir creates its bucket; in production Infra does.
+  # weed shell exits 0 even when a command fails, so success is read back
+  # from the bucket list rather than from the exit code.
+  buckets:
+    image: chrislusf/seaweedfs:3.97
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for b in loki mimir; do
+          i=0
+          until echo "s3.bucket.list" | weed shell -master=seaweedfs:9333 2>/dev/null | grep -qw "$$b"; do
+            i=$$((i + 1)); [ "$$i" -gt 120 ] && echo "bucket $$b never created" && exit 1
+            echo "s3.bucket.create -name $$b" | weed shell -master=seaweedfs:9333 >/dev/null 2>&1
+            sleep 1
+          done
+          echo "bucket $$b ready"
+        done
+    depends_on:
+      - seaweedfs
+
+  # Started only once the buckets exist: a gateway running while they are
+  # created caches them as missing and answers NoSuchBucket until restarted.
+  # Standalone, it binds 127.0.0.1 unless told otherwise.
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:3.97
+    command: ["s3", "-filer=seaweedfs:8888", "-ip.bind=0.0.0.0", "-port=8333", "-config=/etc/seaweedfs/s3.json"]
+    volumes:
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 2s
+      retries: 30
+    depends_on:
+      buckets:
+        condition: service_completed_successfully
+
+  loki:
+    image: grafana/loki:3.5.7
+    command: ["-config.file=/etc/loki/loki.yaml", "-config.expand-env=true"]
+    environment:
+      <<: *s3-env
+      LOKI_S3_BUCKET: loki
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/loki.yaml:ro
+    ports:
+      - "3100:3100"
+    depends_on:
+      seaweedfs-s3:
+        condition: service_healthy
+
+  mimir:
+    image: grafana/mimir:2.17.0
+    command: ["-config.file=/etc/mimir/mimir.yaml", "-config.expand-env=true"]
+    environment:
+      <<: *s3-env
+      MIMIR_S3_BUCKET: mimir
+    volumes:
+      - ./mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
+    ports:
+      - "9009:9009"
+    depends_on:
+      seaweedfs-s3:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    environment:
+      MIMIR_URL: http://mimir:9009/prometheus
+      LOKI_URL: http://loki:3100
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"   # admin/admin locally
+    depends_on:
+      - loki
+      - mimir
+
+  # A fresh named volume is root-owned and the collector runs as uid 10001
+  # with no shell to fix it, so the persistent queue could not be opened.
+  queue-permissions:
+    image: busybox:1.36
+    user: "0"
+    command: ["chown", "-R", "10001:10001", "/var/lib/otelcol/storage"]
+    volumes:
+      - collector-queue:/var/lib/otelcol/storage
+
   collector:
     image: otel/opentelemetry-collector-contrib:0.140.1
     command: ["--config=/etc/otelcol/config.yaml"]
@@ -47,13 +157,21 @@ services:
       # Otlp:Endpoint at http://localhost:4319 when running the services.
       - "4319:4318"   # OTLP http/protobuf. 4317 is deliberately not exposed
     depends_on:
-      - nats
+      queue-permissions:
+        condition: service_completed_successfully
+      nats:
+        condition: service_started
+      loki:
+        condition: service_started
+      mimir:
+        condition: service_started
 
 volumes:
   couchdb-data:
   collector-queue:
+  seaweedfs-data:
 
-# The collector exports to SigNoz on the network below. Create it before
+# The collector exports traces to SigNoz on the network below. Create it before
 # starting either stack, and attach SigNoz to it as well:
 #
 #   docker network create observability

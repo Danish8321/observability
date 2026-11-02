@@ -9,9 +9,9 @@ after the demo, and the boundary that makes deferring them safe is that
 ## Shape
 
 ```
-service ──────OTLP/http──────▶ collector ──▶ SigNoz
-               :4318          ▲              (traces, metrics, UI)
-                              │
+service ──────OTLP/http──────▶ collector ──┬─▶ Loki   (logs)    ─┐
+               :4318          ▲            ├─▶ Mimir  (metrics) ─┼─▶ S3 ─ Grafana :3000
+                              │            └─▶ SigNoz (traces, until Infra picks a trace store)
 NATS ──JSON──▶ nats-exporter ─┘
      :8222                 scraped :7777
 ```
@@ -25,20 +25,26 @@ governance will
 services straight at the store now would mean re-pointing every one of them
 later.
 
-## SigNoz
+## The stores
 
-Chosen for the demo without a bake-off — one system to operate beats four while
-proving a point. Reversible: the queries are specified store-neutrally in
-[`../docs/diagnostic-queries.md`](../docs/diagnostic-queries.md), so
-[the bake-off](../docs/phase3/store-bakeoff.md) still happens and loses nothing.
+The collector, Loki, Mimir and Grafana configuration here is what Infra deploys
+([`HANDOFF.md`](HANDOFF.md), plan R6); the local stack runs the same files,
+with SeaweedFS standing in for S3.
+
+```sh
+docker network create observability   # once
+docker compose -f deploy/docker-compose.yaml up -d --wait
+.claude/scripts/e2e-stack.sh          # stores answer and Grafana sees them
+```
+
+Grafana is on `localhost:3000` (admin/admin locally). Traces still go to the
+SigNoz demo backend, which runs as its own stack on the same network:
 
 ```sh
 git clone -b main https://github.com/SigNoz/signoz.git
 cd signoz/deploy/docker
 docker compose up -d
 ```
-
-Then run this collector alongside it, mounting `collector/config.yaml`.
 
 ## The NATS scrape
 

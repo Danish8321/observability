@@ -1,0 +1,76 @@
+# Handoff to Infra
+
+Infra operates EKS, S3, IAM, SES and Grafana; this repo has no access to any of
+them (plan R6). What this repo hands over is configuration files, each run
+unchanged by the local stack (`docker-compose.yaml`) and checked by
+`.claude/scripts/e2e-stack.sh`. Everything that differs between the local stack
+and production is an environment variable, listed below.
+
+Status: **D2, partial.** Logs and metrics are ready. Traces wait on Infra's
+choice of trace store (ClickHouse or Tempo; see
+[the stack recommendation](../docs/plans/telemetry-stack-recommendation.html)
+and its open questions). ADR-0037 is written once that choice is made.
+
+## Files
+
+| File | Runs as | Notes |
+|---|---|---|
+| `collector/config.yaml` | OTel Collector contrib `0.140.1`, the gateway | Holds the allowlist, one of our three enforcement points (ADR-0009). **Run it unmodified**; change only environment variables. |
+| `collector/k8s.yaml` | merged on top: `--config=config.yaml --config=k8s.yaml` | Adds pod metadata (namespace, pod, node) through `k8sattributes`. |
+| `loki/loki.yaml` | Loki `3.5.7`, monolithic, `-config.expand-env=true` | |
+| `mimir/mimir.yaml` | Mimir `2.17.0`, monolithic, `-config.expand-env=true` | |
+| `grafana/provisioning/` | mounted at `/etc/grafana/provisioning` | Data sources with fixed uids `mimir` and `loki`; later dashboards and alert rules reference them. |
+| `seaweedfs/` | local stack only | Stands in for S3. Not for production. |
+
+## Environment
+
+| Variable | Used by | Local value | Production |
+|---|---|---|---|
+| `LOKI_OTLP_ENDPOINT` | collector | `http://loki:3100/otlp` | Loki's service URL + `/otlp` |
+| `MIMIR_OTLP_ENDPOINT` | collector | `http://mimir:9009/otlp` | Mimir's service URL + `/otlp` |
+| `DEPLOYMENT_ENVIRONMENT_NAME` | collector | `staging` | `production` (one gateway per environment, R5) |
+| `LOKI_S3_BUCKET` / `MIMIR_S3_BUCKET` | Loki / Mimir | `loki` / `mimir` | one bucket per store |
+| `S3_ENDPOINT` | both | `seaweedfs-s3:8333` | `s3.<region>.amazonaws.com` |
+| `S3_REGION` | both | `us-east-1` | the bucket region |
+| `S3_INSECURE` | both | `true` | `false` (default) |
+| `S3_FORCE_PATH_STYLE` | Loki | `true` | `false` (default) |
+| `S3_BUCKET_LOOKUP_TYPE` | Mimir | `path` | `auto` (default) |
+| `LOKI_RETENTION` / `MIMIR_RETENTION` | Loki / Mimir | `720h` (default) | your call (open question 6) |
+| `MIMIR_OUT_OF_ORDER_WINDOW` | Mimir | `1h` (default) | at least the longest store outage the collector queue should cover |
+| `MIMIR_URL` / `LOKI_URL` | Grafana | `http://mimir:9009/prometheus` / `http://loki:3100` | service URLs |
+
+No S3 access keys appear in any file. Locally they come from
+`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`; in production, leave those unset
+and give Loki and Mimir an IAM role for service accounts (IRSA) with
+read/write/list on their own bucket only.
+
+## What Infra provides
+
+- **Buckets.** Neither store creates its bucket.
+- **Collector service account** allowed to `get`, `watch` and `list` pods,
+  namespaces and nodes (for `k8sattributes`), and a persistent volume at
+  `/var/lib/otelcol/storage` writable by uid 10001: the export queue survives
+  restarts there.
+- **Each service pod** sets `OTEL_SERVICE_INSTANCE_ID` from its pod name (R3).
+
+## Recommendations, Infra decides
+
+- **R2**: one gateway replica for now. It is a single point of failure, covered
+  by the persistent queue now and by the dead-man's-switch alerts in D3.
+- **R5**: staging telemetry goes to the production stack tagged
+  `deployment.environment.name=staging`.
+
+## Not in this handoff yet
+
+- **Traces.** `config.yaml` still exports traces to the demo SigNoz backend
+  (`signoz-ingester-1:4317`). In production that exporter has nothing to
+  reach, so traces queue and are dropped when the queue is full. Swapped
+  for the chosen trace store in the next handoff.
+- **Queue size** is a placeholder (10,000 batches), not sized from a measured
+  outage window.
+- **Exemplars** are off in Mimir by default; D4 turns them on.
+- **Alerting** (D3), dashboards and SLOs (D10).
+
+## Production checks that are Infra's
+
+Restore from S3, alert email through real SES, and the MTTR baseline (R6).

@@ -1,0 +1,46 @@
+# Loki, monolithic. Same file locally and in production (plan R6); the
+# differences are environment variables (-config.expand-env=true).
+#
+# S3 credentials are deliberately absent: the AWS SDK default chain reads
+# AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY locally and the pod's IAM role in
+# production.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    s3:
+      bucketnames: ${LOKI_S3_BUCKET}
+      endpoint: ${S3_ENDPOINT}
+      region: ${S3_REGION}
+      insecure: ${S3_INSECURE:-false}
+      s3forcepathstyle: ${S3_FORCE_PATH_STYLE:-false}
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: s3
+  retention_enabled: true
+
+limits_config:
+  retention_period: ${LOKI_RETENTION:-720h}
+
+# Phones home to grafana.com otherwise.
+analytics:
+  reporting_enabled: false

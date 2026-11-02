@@ -1,0 +1,63 @@
+# Mimir, monolithic. Same file locally and in production (plan R6); the
+# differences are environment variables (-config.expand-env=true). Mimir
+# writes a default as VAR:default inside the braces, where Loki writes VAR:-default.
+#
+# One bucket, three prefixes: blocks, ruler and alertmanager state must not
+# share a prefix. S3 credentials are deliberately absent — the AWS credential
+# chain reads AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY locally and the pod's IAM
+# role in production.
+multitenancy_enabled: false
+
+server:
+  http_listen_port: 9009
+
+common:
+  storage:
+    backend: s3
+    s3:
+      bucket_name: ${MIMIR_S3_BUCKET}
+      endpoint: ${S3_ENDPOINT}
+      region: ${S3_REGION}
+      insecure: ${S3_INSECURE:false}
+      bucket_lookup_type: ${S3_BUCKET_LOOKUP_TYPE:auto}
+
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/tsdb
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+
+ruler_storage:
+  storage_prefix: ruler
+
+alertmanager_storage:
+  storage_prefix: alertmanager
+
+ruler:
+  rule_path: /data/ruler
+
+alertmanager:
+  data_dir: /data/alertmanager
+
+compactor:
+  data_dir: /data/compactor
+
+limits:
+  compactor_blocks_retention_period: ${MIMIR_RETENTION:720h}
+  # The collector's persistent queue replays what it held during a Mimir
+  # outage, older than samples written since. Without a window every replayed
+  # sample is rejected as out of order and the queue protected nothing.
+  out_of_order_time_window: ${MIMIR_OUT_OF_ORDER_WINDOW:1h}
+
+ingester:
+  ring:
+    replication_factor: 1
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+
+# Phones home to grafana.com otherwise.
+usage_stats:
+  enabled: false
