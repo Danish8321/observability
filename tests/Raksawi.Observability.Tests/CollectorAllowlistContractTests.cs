@@ -14,7 +14,9 @@ namespace Raksawi.Observability.Tests;
 /// </remarks>
 public sealed class CollectorAllowlistContractTests
 {
-    private static readonly string Config = ReadConfig();
+    private static readonly string Config = ReadConfig("config.yaml");
+
+    private static readonly string KubernetesOverlay = ReadConfig("k8s.yaml");
 
     [Theory]
     [MemberData(nameof(AllowedFamilies))]
@@ -154,6 +156,30 @@ public sealed class CollectorAllowlistContractTests
 
         Assert.All(pipelines, pipeline =>
             Assert.Contains("transform/allowlist", pipeline.Body));
+    }
+
+    [Fact]
+    public void The_kubernetes_overlay_only_adds_pod_metadata_before_the_allowlist()
+    {
+        // 🔒 A merged --config replaces processor lists wholesale, so the overlay
+        // restates config.yaml's. A restated list that lost transform/allowlist
+        // would be an unfiltered path that exists only in production.
+        var overlay = Pipelines(KubernetesOverlay[KubernetesOverlay.IndexOf("  pipelines:", StringComparison.Ordinal)..]);
+        var otlpPipelines = Pipelines()
+            .Where(pipeline => pipeline.Body.Contains("receivers: [otlp]", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(
+            otlpPipelines.Select(pipeline => pipeline.Name).Order(),
+            overlay.Select(pipeline => pipeline.Name).Order());
+
+        Assert.All(otlpPipelines, pipeline =>
+        {
+            var expected = Processors(pipeline.Body);
+            expected.Insert(expected.IndexOf("transform/allowlist"), "k8sattributes");
+
+            Assert.Equal(expected, Processors(overlay.Single(o => o.Name == pipeline.Name).Body));
+        });
     }
 
     [Fact]
@@ -344,9 +370,11 @@ public sealed class CollectorAllowlistContractTests
     /// <summary>
     /// Every pipeline under service.pipelines, discovered rather than named.
     /// </summary>
-    private static (string Name, string Body)[] Pipelines()
+    private static (string Name, string Body)[] Pipelines() => Pipelines(Section("  pipelines:", "  telemetry:"));
+
+    private static (string Name, string Body)[] Pipelines(string pipelinesBlock)
     {
-        var block = Section("  pipelines:", "  telemetry:").Split('\n');
+        var block = pipelinesBlock.Split('\n');
         var found = new List<(string, string)>();
         var name = string.Empty;
         var body = new System.Text.StringBuilder();
@@ -383,6 +411,15 @@ public sealed class CollectorAllowlistContractTests
         return [.. found];
     }
 
+    /// <summary>A pipeline's processors, in order.</summary>
+    private static List<string> Processors(string pipelineBody)
+    {
+        var line = pipelineBody.Split('\n').Single(l => l.TrimStart().StartsWith("processors:", StringComparison.Ordinal));
+        var list = line[(line.IndexOf('[') + 1)..line.IndexOf(']')];
+
+        return [.. list.Split(',').Select(processor => processor.Trim())];
+    }
+
     /// <summary>The configuration between two markers, exclusive of the second.</summary>
     private static string Section(string from, string to)
     {
@@ -408,13 +445,13 @@ public sealed class CollectorAllowlistContractTests
     /// deployment asset rather than test content, so it is read where it
     /// actually ships — a copy in the test project could itself drift.
     /// </summary>
-    private static string ReadConfig()
+    private static string ReadConfig(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory is not null)
         {
-            var candidate = Path.Combine(directory.FullName, "deploy", "collector", "config.yaml");
+            var candidate = Path.Combine(directory.FullName, "deploy", "collector", fileName);
 
             if (File.Exists(candidate))
             {
@@ -424,6 +461,6 @@ public sealed class CollectorAllowlistContractTests
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException("deploy/collector/config.yaml not found above " + AppContext.BaseDirectory);
+        throw new FileNotFoundException("deploy/collector/" + fileName + " not found above " + AppContext.BaseDirectory);
     }
 }

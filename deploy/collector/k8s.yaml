@@ -1,0 +1,41 @@
+# Kubernetes overlay for the gateway (plan R3). Merged on top of config.yaml:
+#
+#   otelcol --config=config.yaml --config=k8s.yaml
+#
+# Kept apart because k8sattributes cannot start outside a cluster, and the
+# local stack runs config.yaml unchanged. It needs a service account allowed to
+# get/watch/list pods, namespaces and nodes (deploy/HANDOFF.md).
+#
+# 🔒 A merge replaces lists rather than appending to them, so each pipeline
+# below restates config.yaml's processors with k8sattributes added. It runs
+# BEFORE transform/allowlist, for the same reason transform/nats does: what it
+# writes is governed by the resource rule (k8s. is an allowed resource family)
+# instead of arriving after it. CollectorAllowlistContractTests fails if these
+# lists drift from config.yaml's.
+#
+# Only the OTLP pipelines: the scrape pipelines describe NATS and the
+# collector itself, not a pod that sent a request.
+
+processors:
+  k8sattributes:
+    auth_type: serviceAccount
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.node.name
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.pod.ip
+      - sources:
+          - from: connection
+
+service:
+  pipelines:
+    traces:
+      processors: [memory_limiter, k8sattributes, transform/allowlist, resource, batch]
+    metrics:
+      processors: [memory_limiter, k8sattributes, transform/allowlist, resource, batch]
+    logs:
+      processors: [memory_limiter, k8sattributes, transform/allowlist, resource, batch]

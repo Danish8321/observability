@@ -1,7 +1,9 @@
-# OpenTelemetry Collector — demo configuration.
+# OpenTelemetry Collector — the gateway. The same file runs in the local stack
+# and goes to Infra (plan R6): what differs between the two is environment
+# variables, each with a local-stack default. deploy/HANDOFF.md lists them.
+# On Kubernetes, k8s.yaml is merged on top (--config twice) for pod metadata.
 #
-# Demo scope only (ADR-0022) in its exporter, storage, and environment
-# settings. The allowlist itself is not demo-scoped: transform/allowlist below
+# Queue size is still a placeholder (ADR-0022). The allowlist itself is not demo-scoped: transform/allowlist below
 # is the third ADR-0003 enforcement point, and it is the ONLY one that applies
 # to agent-instrumented .NET Framework services, which contain none of our code
 # (ADR-0009). It is written by hand rather than generated, and a unit test
@@ -203,13 +205,16 @@ processors:
           # missing from the other is drift either way.
           - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$")
 
+  # Upsert: the gateway, not the service, says which environment it serves.
   resource:
     attributes:
       - key: deployment.environment.name
-        value: staging
+        value: ${env:DEPLOYMENT_ENVIRONMENT_NAME:-staging}
         action: upsert
 
 exporters:
+  # Traces stay on the SigNoz demo backend until Infra chooses the trace store
+  # (ClickHouse or Tempo, docs/plans/telemetry-stack-recommendation.html).
   otlp/signoz:
     # Demo-only override: upstream SigNoz's own compose file (which named this
     # host signoz-otel-collector) is deprecated in favor of the Foundry
@@ -217,12 +222,27 @@ exporters:
     endpoint: signoz-ingester-1:4317
     tls:
       insecure: true
-    sending_queue:
+    sending_queue: &queue
       enabled: true
       storage: file_storage
       # Sized from a measured restore window at I3.6/I3.7. This is a demo
       # placeholder and is explicitly not the durability bound (Q13).
       queue_size: 10000
+    retry_on_failure:
+      enabled: true
+
+  # Loki and Mimir both ingest OTLP natively under /otlp; the exporter appends
+  # /v1/logs or /v1/metrics. Each exporter gets its own persistent queue, so
+  # one store being down holds only its own signal.
+  otlphttp/loki:
+    endpoint: ${env:LOKI_OTLP_ENDPOINT:-http://loki:3100/otlp}
+    sending_queue: *queue
+    retry_on_failure:
+      enabled: true
+
+  otlphttp/mimir:
+    endpoint: ${env:MIMIR_OTLP_ENDPOINT:-http://mimir:9009/otlp}
+    sending_queue: *queue
     retry_on_failure:
       enabled: true
 
@@ -240,7 +260,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]
-      exporters: [otlp/signoz]
+      exporters: [otlphttp/mimir]
     # 🔒 Its own pipeline rather than a second receiver on the one above, so the
     # NATS-only mapping cannot touch a service's metrics. transform/allowlist is
     # still in it: a pipeline that skips the allowlist is the drift this repo
@@ -249,7 +269,7 @@ service:
     metrics/nats:
       receivers: [prometheus/nats]
       processors: [memory_limiter, transform/nats, transform/allowlist, resource, batch]
-      exporters: [otlp/signoz]
+      exporters: [otlphttp/mimir]
 
     # 🔒 The collector's own health, on the same terms as everything else: it
     # goes through the allowlist too. A self-report exempt from the rules it
@@ -261,11 +281,11 @@ service:
     metrics/internal:
       receivers: [prometheus/collector]
       processors: [memory_limiter, transform/allowlist, resource, batch]
-      exporters: [otlp/signoz]
+      exporters: [otlphttp/mimir]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]
-      exporters: [otlp/signoz]
+      exporters: [otlphttp/loki]
   telemetry:
     metrics:
       # The stack's own health. Rev 3 I3.8 — a monitoring stack that reports

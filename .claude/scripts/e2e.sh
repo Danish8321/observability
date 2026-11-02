@@ -77,6 +77,8 @@ MSYS_NO_PATHCONV=1 docker run -d --name "$SINK" --network "$NET" \
     "$IMAGE" --config=/etc/otelcol/config.yaml >/dev/null
 
 MSYS_NO_PATHCONV=1 docker run -d --name "$SUT" --network "$NET" \
+    -e LOKI_OTLP_ENDPOINT="http://$SINK:4318" \
+    -e MIMIR_OTLP_ENDPOINT="http://$SINK:4318" \
     -v "$(pwd)/deploy/collector":/etc/otelcol:ro \
     -v "$QUEUE_VOL":/var/lib/otelcol/storage \
     -p "$PORT":4318 \

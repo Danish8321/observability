@@ -12,6 +12,8 @@ dotnet test --nologo -c Release
 echo "== collector config validate =="
 if command -v otelcol >/dev/null 2>&1; then
     otelcol validate --config=deploy/collector/config.yaml
+    # Production merges the Kubernetes overlay on top (deploy/collector/k8s.yaml).
+    otelcol validate --config=deploy/collector/config.yaml --config=deploy/collector/k8s.yaml
 elif command -v docker >/dev/null 2>&1; then
     echo "otelcol not on PATH, falling back to its container." >&2
     storage_dir="$(mktemp -d)"
@@ -21,6 +23,7 @@ elif command -v docker >/dev/null 2>&1; then
         -v "$storage_dir":/var/lib/otelcol/storage \
         otel/opentelemetry-collector-contrib:0.140.1 \
         validate --config=/etc/otelcol/config.yaml
+    MSYS_NO_PATHCONV=1 docker run --rm         -v "$(pwd)/deploy/collector":/etc/otelcol         -v "$storage_dir":/var/lib/otelcol/storage         otel/opentelemetry-collector-contrib:0.140.1         validate --config=/etc/otelcol/config.yaml --config=/etc/otelcol/k8s.yaml
 else
     echo "Neither otelcol nor docker on PATH. Install otelcol, matching the" >&2
     echo "distribution deploy/docker-compose.yaml uses" >&2
