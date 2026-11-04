@@ -1,0 +1,215 @@
+# Platform alerts: the stack watching itself (plan D3, ADR-0040). Service
+# alerts arrive in D4; "a service stopped reporting" in D11, with the register.
+#
+# 🔒 The collector's own metrics reach Mimir through the collector's Mimir
+# exporter. So every rule on them answers "is the collector reporting", not
+# "is the collector alive", and a broken Mimir path looks like a dead
+# collector. Two consequences, both deliberate:
+#   - these rules treat a failed query as OK (execErrState: OK), so a Mimir
+#     outage sends the store email alone rather than also blaming the collector;
+#   - "Collector not reporting" names both causes, and its runbook separates
+#     them.
+#
+# Annotations are not environment-interpolated by Grafana, so runbook links
+# are written out in full.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: platform
+    folder: Platform
+    interval: 1m
+    rules:
+      - uid: collector-not-reporting
+        title: Collector not reporting
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              # 1 when the self-scrape has written nothing for 2 minutes. While
+              # it reports, the result is empty, which is the healthy case.
+              expr: absent_over_time(up{job="otelcol"}[2m])
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        # 2m of absence above plus 3m pending: about 5 minutes to the email.
+        for: 3m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: collector
+        annotations:
+          summary: The collector's own metrics have stopped reaching Mimir.
+          description: >-
+            Either the collector is down, or its metrics export to Mimir is
+            failing. Both stop every signal from reaching storage. Check the
+            collector process first.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/collector-not-reporting.md
+
+      - uid: collector-export-stalled
+        title: Export stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              # Finding 07: with retry on, a failing export never resolves, so
+              # sent and send_failed are both flat or absent. What moves is the
+              # queue. Held work with nothing sent is the outage.
+              expr: |
+                max by (exporter) (otelcol_exporter_queue_size) > 0
+                unless on (exporter)
+                sum by (exporter) (rate({__name__=~"otelcol_exporter_sent_(spans|metric_points|log_records)_total"}[5m])) > 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: collector
+        annotations:
+          summary: "Exporter {{ $labels.exporter }} is holding data and sending none."
+          description: >-
+            The collector is receiving but cannot deliver to the store behind
+            {{ $labels.exporter }}. Data waits in the persistent queue until it
+            is full, then is dropped.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/collector-export-stalled.md
+
+      - uid: collector-queue-filling
+        title: Collector queue filling
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.8] }
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: collector
+        annotations:
+          summary: "Exporter {{ $labels.exporter }} queue is over 80% full."
+          description: >-
+            When the queue is full, new data for this exporter is dropped.
+            The queue size is a placeholder, not sized from a measured outage.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/collector-queue-filling.md
+
+      # The store rules ask the store a question that always has an answer.
+      # A failed query is the alert (execErrState: Alerting), evaluated by
+      # Grafana itself, so it fires with the pipeline down too.
+      - uid: store-unreachable-mimir
+        title: "Store unreachable: Mimir"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: vector(1)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        labels:
+          component: store
+        annotations:
+          summary: Grafana cannot query Mimir.
+          description: >-
+            Metrics cannot be read, and every metric alert is blind. The
+            collector holds metrics in its queue until Mimir returns.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/store-unreachable.md
+
+      - uid: store-unreachable-loki
+        title: "Store unreachable: Loki"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: vector(1)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        labels:
+          component: store
+        annotations:
+          summary: Grafana cannot query Loki.
+          description: >-
+            Logs cannot be read. The collector holds logs in its queue until
+            Loki returns.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/store-unreachable.md
+
+      # Always firing, from an expression alone so it depends on no store.
+      # Routed to a 24h repeat in notifications.yaml.
+      - uid: alerting-heartbeat
+        title: Alerting heartbeat
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: __expr__
+            model:
+              refId: A
+              type: math
+              expression: "1"
+        for: 0s
+        noDataState: Alerting
+        execErrState: Alerting
+        labels:
+          component: alerting
+          heartbeat: "true"
+        annotations:
+          summary: Alerting is alive. This email arrives once a day.
+          description: >-
+            If a day passes without it, Grafana or its email delivery is
+            down, and no other alert can reach you.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/alerting-heartbeat.md

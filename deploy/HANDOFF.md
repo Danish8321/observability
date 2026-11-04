@@ -6,7 +6,7 @@ unchanged by the local stack (`docker-compose.yaml`) and checked by
 `.claude/scripts/e2e-stack.sh`. Everything that differs between the local stack
 and production is an environment variable, listed below.
 
-Status: **D2, partial.** Logs and metrics are ready. Traces wait on Infra's
+Status: **D2, partial; D3.** Logs, metrics and the platform alerts are ready. Traces wait on Infra's
 choice of trace store (ClickHouse or Tempo; see
 [the stack recommendation](../docs/plans/telemetry-stack-recommendation.html)
 and its open questions). ADR-0037 is written once that choice is made.
@@ -19,7 +19,7 @@ and its open questions). ADR-0037 is written once that choice is made.
 | `collector/k8s.yaml` | merged on top: `--config=config.yaml --config=k8s.yaml` | Adds pod metadata (namespace, pod, node) through `k8sattributes`. |
 | `loki/loki.yaml` | Loki `3.5.7`, monolithic, `-config.expand-env=true` | |
 | `mimir/mimir.yaml` | Mimir `2.17.0`, monolithic, `-config.expand-env=true` | |
-| `grafana/provisioning/` | mounted at `/etc/grafana/provisioning` | Data sources with fixed uids `mimir` and `loki`; later dashboards and alert rules reference them. |
+| `grafana/provisioning/` | mounted at `/etc/grafana/provisioning` | Data sources with fixed uids `mimir` and `loki`; alert rules, the email contact point and the notification policy (`alerting/`, ADR-0040) reference them. Checked by `.claude/scripts/e2e-alerting.sh`. |
 | `seaweedfs/` | local stack only | Stands in for S3. Not for production. |
 
 ## Environment
@@ -38,6 +38,8 @@ and its open questions). ADR-0037 is written once that choice is made.
 | `LOKI_RETENTION` / `MIMIR_RETENTION` | Loki / Mimir | `720h` (default) | your call (open question 6) |
 | `MIMIR_OUT_OF_ORDER_WINDOW` | Mimir | `1h` (default) | at least the longest store outage the collector queue should cover |
 | `MIMIR_URL` / `LOKI_URL` | Grafana | `http://mimir:9009/prometheus` / `http://loki:3100` | service URLs |
+| `GF_SMTP_ENABLED` / `GF_SMTP_HOST` / `GF_SMTP_FROM_ADDRESS` | Grafana | `true` / `mailpit:1025` / `alerts@raksawi.local` | SES SMTP endpoint, port 587, and a verified sender; add `GF_SMTP_USER` / `GF_SMTP_PASSWORD` from a secret |
+| `ALERT_EMAIL_TO` | Grafana (contact point) | `oncall@raksawi.local` | the on-call list, one per environment |
 
 No S3 access keys appear in any file. Locally they come from
 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`; in production, leave those unset
@@ -69,7 +71,12 @@ read/write/list on their own bucket only.
 - **Queue size** is a placeholder (10,000 batches), not sized from a measured
   outage window.
 - **Exemplars** are off in Mimir by default; D4 turns them on.
-- **Alerting** (D3), dashboards and SLOs (D10).
+- Service alerts (D4), dashboards and SLOs (D10). Platform alerts are in
+  this handoff (D3).
+- **A watcher for the heartbeat.** "Alerting heartbeat" emails daily; Grafana
+  being down shows only as that email not arriving. An external
+  dead-man's-switch service that emails on a missed heartbeat closes the gap;
+  choosing one is yours (ADR-0040).
 
 ## Production checks that are Infra's
 

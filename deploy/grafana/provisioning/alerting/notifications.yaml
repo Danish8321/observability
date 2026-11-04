@@ -1,0 +1,34 @@
+# Where alerts go (plan Q13: email). The same file runs in the local stack and
+# goes to Infra (plan R6). SMTP itself is Grafana server configuration, the
+# GF_SMTP_* variables, and never appears in this repo; the recipients come from
+# ALERT_EMAIL_TO, one list per environment.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email
+    receivers:
+      - uid: email
+        type: email
+        settings:
+          addresses: $ALERT_EMAIL_TO
+          singleEmail: true
+
+# Provisioning replaces the whole tree, so this is all of it.
+policies:
+  - orgId: 1
+    receiver: email
+    # One email per alert, so the subject says which part is broken. Exporters
+    # of one alert share an email; the body lists each.
+    group_by: [alertname]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      # The heartbeat always fires. Repeating it daily turns "alerting works"
+      # into an email that arrives, and "Grafana is dead" into one that stops.
+      - receiver: email
+        object_matchers:
+          - [heartbeat, "=", "true"]
+        group_wait: 0s
+        repeat_interval: 24h

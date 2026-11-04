@@ -35,9 +35,11 @@ with SeaweedFS standing in for S3.
 docker network create observability   # once
 docker compose -f deploy/docker-compose.yaml up -d --wait
 .claude/scripts/e2e-stack.sh          # stores answer and Grafana sees them
+.claude/scripts/e2e-alerting.sh       # each platform alert emails (~15 min)
 ```
 
-Grafana is on `localhost:3000` (admin/admin locally). Traces still go to the
+Grafana is on `localhost:3000` (admin/admin locally); alert email lands in
+Mailpit on `localhost:8025`. Traces still go to the
 SigNoz demo backend, which runs as its own stack on the same network:
 
 ```sh
@@ -90,7 +92,8 @@ it survives both scrape jobs' metric filters.
 
 🔒 **None of it detects the collector being dead.** A dead collector stops
 scraping itself and the series simply stop, which looks identical to a quiet
-period. That needs alerting, not a panel, and it is not built.
+period. That needs alerting, not a panel: "Collector not reporting" in
+`grafana/provisioning/alerting/rules.yaml` (ADR-0040).
 
 ## Service configuration
 
