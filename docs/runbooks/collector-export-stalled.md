@@ -8,9 +8,12 @@ until it is full, then drops new data (see
 
 | Exporter | Store |
 |---|---|
-| `otlphttp/mimir` | Mimir (metrics) |
 | `otlphttp/loki` | Loki (logs) |
 | `otlp/signoz` | the trace store |
+
+It never names `otlphttp/mimir`: the evidence for this alert travels through
+that exporter, so a stalled Mimir export shows as
+[Collector not reporting](./collector-not-reporting.md) instead.
 
 The condition is the queue holding work while the sent rate is zero, not the
 failed counter: with retry enabled a failing export never resolves, so
@@ -19,11 +22,11 @@ failed counter: with retry enabled a failing export never resolves, so
 **First query** (Mimir, panels 4.4 and 4.5):
 
 ```promql
-max by (exporter) (otelcol_exporter_queue_size)
+max by (deployment_environment_name, exporter) (otelcol_exporter_queue_size)
 ```
 
 ```promql
-sum by (exporter) (rate({__name__=~"otelcol_exporter_sent_(spans|metric_points|log_records)_total"}[5m]))
+sum by (deployment_environment_name, exporter) (rate({__name__=~"otelcol_exporter_sent_(spans|metric_points|log_records)_total"}[5m]))
 ```
 
 Then the collector's log, which names the failing exporter and the store's

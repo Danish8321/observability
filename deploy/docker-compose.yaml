@@ -161,9 +161,13 @@ services:
   collector:
     image: otel/opentelemetry-collector-contrib:0.140.1
     command: ["--config=/etc/otelcol/config.yaml"]
-    # e2e-alerting.sh overrides this to break the Loki export on purpose.
     environment:
-      LOKI_OTLP_ENDPOINT: ${LOKI_OTLP_ENDPOINT:-http://loki:3100/otlp}
+      # Passed through only when set: e2e-alerting.sh sets it to break the Loki
+      # export on purpose. Unset, config.yaml's default applies.
+      LOKI_OTLP_ENDPOINT:
+      # Not staging: the platform alerts ignore staging (plan R5), and this
+      # stack has to fire them.
+      DEPLOYMENT_ENVIRONMENT_NAME: local
     volumes:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
       - collector-queue:/var/lib/otelcol/storage

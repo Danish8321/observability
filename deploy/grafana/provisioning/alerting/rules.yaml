@@ -10,6 +10,12 @@
 #   - "Collector not reporting" names both causes, and its runbook separates
 #     them.
 #
+# Collector rules ignore staging (plan R5) by deployment_environment_name,
+# which Mimir promotes onto every series (mimir.yaml). The local stack's
+# collector is "local", so it fires them; e2e-alerting.sh asserts the label
+# exists, because without it the != matcher matches everything and staging
+# again hides production.
+#
 # Annotations are not environment-interpolated by Grafana, so runbook links
 # are written out in full.
 apiVersion: 1
@@ -32,7 +38,7 @@ groups:
               instant: true
               # 1 when the self-scrape has written nothing for 2 minutes. While
               # it reports, the result is empty, which is the healthy case.
-              expr: absent_over_time(up{job="otelcol"}[2m])
+              expr: absent_over_time(up{job="otelcol", deployment_environment_name!="staging"}[2m])
           - refId: C
             datasourceUid: __expr__
             model:
@@ -69,9 +75,9 @@ groups:
               # sent and send_failed are both flat or absent. What moves is the
               # queue. Held work with nothing sent is the outage.
               expr: |
-                max by (exporter) (otelcol_exporter_queue_size) > 0
-                unless on (exporter)
-                sum by (exporter) (rate({__name__=~"otelcol_exporter_sent_(spans|metric_points|log_records)_total"}[5m])) > 0
+                max by (deployment_environment_name, exporter) (otelcol_exporter_queue_size{deployment_environment_name!="staging"}) > 0
+                unless on (deployment_environment_name, exporter)
+                sum by (deployment_environment_name, exporter) (rate({__name__=~"otelcol_exporter_sent_(spans|metric_points|log_records)_total"}[5m])) > 0
           - refId: C
             datasourceUid: __expr__
             model:
@@ -86,7 +92,7 @@ groups:
         labels:
           component: collector
         annotations:
-          summary: "Exporter {{ $labels.exporter }} is holding data and sending none."
+          summary: "Exporter {{ $labels.exporter }} ({{ $labels.deployment_environment_name }}) is holding data and sending none."
           description: >-
             The collector is receiving but cannot deliver to the store behind
             {{ $labels.exporter }}. Data waits in the persistent queue until it
@@ -103,7 +109,7 @@ groups:
             model:
               refId: A
               instant: true
-              expr: max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)
+              expr: max by (deployment_environment_name, exporter) (otelcol_exporter_queue_size{deployment_environment_name!="staging"} / otelcol_exporter_queue_capacity)
           - refId: C
             datasourceUid: __expr__
             model:
@@ -118,7 +124,7 @@ groups:
         labels:
           component: collector
         annotations:
-          summary: "Exporter {{ $labels.exporter }} queue is over 80% full."
+          summary: "Exporter {{ $labels.exporter }} ({{ $labels.deployment_environment_name }}) queue is over 80% full."
           description: >-
             When the queue is full, new data for this exporter is dropped.
             The queue size is a placeholder, not sized from a measured outage.

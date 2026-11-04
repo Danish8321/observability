@@ -50,6 +50,12 @@ The plan fixes delivery as email (Q13), and Infra operates Grafana and SES
 - **"Export stalled" reads the queue, not the failure counter** — held work
   with nothing sent. That is the signal finding 07 showed the failure counter
   cannot give.
+- **Collector rules ignore staging** (plan R5) by `deployment_environment_name`,
+  which Mimir promotes from the resource onto every series. Without it the
+  staging and production gateways write identical series — both are
+  `job="otelcol", instance="localhost:8888"` — and a live staging collector
+  would hide a dead production one. The local stack tags its collector
+  `local`, so it fires the same rules.
 
 **Deviation from the plan's M9 table.** The plan lists "collector receiving:
 `otelcol_receiver_accepted_spans` rate = 0" as a dead man's switch. It is not
@@ -70,9 +76,14 @@ the register and so knows what *should* be sending.
 - **A broken Mimir path looks like a dead collector** until "Store
   unreachable: Mimir" says otherwise. The runbook separates the two causes
   with one Loki query.
+- **The environment label rests on an experimental Mimir setting**
+  (`promote_otel_resource_attributes`, 2.17). If it is lost, the `!="staging"`
+  matcher matches every series and staging masks production again, silently;
+  `e2e-alerting.sh` asserts the label is there. A production gateway with
+  `DEPLOYMENT_ENVIRONMENT_NAME` unset defaults to `staging` and is unwatched.
 - **Thresholds are guesses** until real traffic exists (ADR-0027), and the
   queue size behind the 80% rule is itself a placeholder. Review after two
   weeks of production traffic; an alert that fires without action is changed
   or removed, not muted.
-- **Platform labels carry no Class 2 data** — they are `component`, `exporter`
-  and `heartbeat`. Service alerts (D4) are where that assertion starts to bite.
+- **Platform labels carry no Class 2 data** — they are `component`, `exporter`,
+  `job`, `deployment_environment_name` and `heartbeat`. Service alerts (D4) are where that assertion starts to bite.

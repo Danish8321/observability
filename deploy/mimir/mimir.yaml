@@ -49,6 +49,11 @@ limits:
   # outage, older than samples written since. Without a window every replayed
   # sample is rejected as out of order and the queue protected nothing.
   out_of_order_time_window: ${MIMIR_OUT_OF_ORDER_WINDOW:1h}
+  # Experimental in 2.17. Without it the environment lands only in target_info,
+  # so the staging and production gateways write identical series (job=otelcol,
+  # instance=localhost:8888) and a live one hides a dead one. The platform
+  # alerts select on this label (plan R5, ADR-0040).
+  promote_otel_resource_attributes: deployment.environment.name
 
 ingester:
   ring:

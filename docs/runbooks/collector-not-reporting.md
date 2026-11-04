@@ -11,15 +11,20 @@ service metric, so this fires for two different faults:
 
 If "Store unreachable: Mimir" is also firing, start there: Mimir is down and
 this alert is a consequence. It is set not to fire on a failed query for that
-reason, but it still fires once Mimir answers again and the gap shows.
+reason. Once Mimir answers again the collector replays the missing samples, so
+this may fire briefly or not at all.
 
-**First query** (Loki, panel 4.3's neighbour): are logs still arriving at all?
+**First check:** is the collector pod running?
 
-```logql
-sum(count_over_time({service_name=~".+"}[5m]))
+```sh
+kubectl get pods -n <namespace> -l <the gateway's selector>
 ```
 
-Logs arriving means cause 2; nothing means cause 1.
+Not running (or restarting) means cause 1. Running means cause 2: confirm in
+its log, which names every failed Mimir export.
+
+Logs arriving in Loki (`sum(count_over_time({service_name=~".+"}[5m]))`) also
+point to cause 2, but no logs proves nothing: a quiet estate sends none.
 
 **Likely causes**
 

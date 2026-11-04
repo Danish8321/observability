@@ -18,7 +18,7 @@ and its open questions). ADR-0037 is written once that choice is made.
 | `collector/config.yaml` | OTel Collector contrib `0.140.1`, the gateway | Holds the allowlist, one of our three enforcement points (ADR-0009). **Run it unmodified**; change only environment variables. |
 | `collector/k8s.yaml` | merged on top: `--config=config.yaml --config=k8s.yaml` | Adds pod metadata (namespace, pod, node) through `k8sattributes`. |
 | `loki/loki.yaml` | Loki `3.5.7`, monolithic, `-config.expand-env=true` | |
-| `mimir/mimir.yaml` | Mimir `2.17.0`, monolithic, `-config.expand-env=true` | |
+| `mimir/mimir.yaml` | Mimir `2.17.0`, monolithic, `-config.expand-env=true` | Promotes `deployment.environment.name` onto every series (`promote_otel_resource_attributes`, experimental in 2.17). The platform alerts depend on it to tell staging from production. |
 | `grafana/provisioning/` | mounted at `/etc/grafana/provisioning` | Data sources with fixed uids `mimir` and `loki`; alert rules, the email contact point and the notification policy (`alerting/`, ADR-0040) reference them. Checked by `.claude/scripts/e2e-alerting.sh`. |
 | `seaweedfs/` | local stack only | Stands in for S3. Not for production. |
 
@@ -28,7 +28,7 @@ and its open questions). ADR-0037 is written once that choice is made.
 |---|---|---|---|
 | `LOKI_OTLP_ENDPOINT` | collector | `http://loki:3100/otlp` | Loki's service URL + `/otlp` |
 | `MIMIR_OTLP_ENDPOINT` | collector | `http://mimir:9009/otlp` | Mimir's service URL + `/otlp` |
-| `DEPLOYMENT_ENVIRONMENT_NAME` | collector | `staging` | `production` (one gateway per environment, R5) |
+| `DEPLOYMENT_ENVIRONMENT_NAME` | collector | `local` | `production` (one gateway per environment, R5). **Must be set**: unset, it defaults to `staging`, and the platform alerts ignore staging, so a production gateway left unset is unwatched |
 | `LOKI_S3_BUCKET` / `MIMIR_S3_BUCKET` | Loki / Mimir | `loki` / `mimir` | one bucket per store |
 | `S3_ENDPOINT` | both | `seaweedfs-s3:8333` | `s3.<region>.amazonaws.com` |
 | `S3_REGION` | both | `us-east-1` | the bucket region |
@@ -60,14 +60,18 @@ read/write/list on their own bucket only.
 - **R2**: one gateway replica for now. It is a single point of failure, covered
   by the persistent queue now and by the dead-man's-switch alerts in D3.
 - **R5**: staging telemetry goes to the production stack tagged
-  `deployment.environment.name=staging`.
+  `deployment.environment.name=staging`. The platform alerts ignore it.
 
 ## Not in this handoff yet
 
 - **Traces.** `config.yaml` still exports traces to the demo SigNoz backend
   (`signoz-ingester-1:4317`). In production that exporter has nothing to
   reach, so traces queue and are dropped when the queue is full. Swapped
-  for the chosen trace store in the next handoff.
+  for the chosen trace store in the next handoff. Until then, expect
+  "Export stalled" and later "Collector queue filling" for `otlp/signoz` as
+  soon as a service sends traces. They are true (traces are being dropped)
+  and stay until the trace store is in place; every other exporter still
+  alerts on its own.
 - **Queue size** is a placeholder (10,000 batches), not sized from a measured
   outage window.
 - **Exemplars** are off in Mimir by default; D4 turns them on.

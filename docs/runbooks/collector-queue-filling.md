@@ -7,7 +7,7 @@ data is gone. This is the last warning before loss.
 **First query** (Mimir, panel 4.4):
 
 ```promql
-max by (exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)
+max by (deployment_environment_name, exporter) (otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)
 ```
 
 **Likely causes**
