@@ -64,9 +64,9 @@ receivers:
             - targets: [localhost:8888]
           metric_relabel_configs:
             # otelcol_* only. The same endpoint also publishes the OTLP
-            # receiver's http_server_*, the gRPC exporter's rpc_client_* and
-            # promhttp_*'s own counters, which restate the otelcol_ series one
-            # layer down and disagree with them at the edges.
+            # receiver's http_server_* and promhttp_*'s own counters, which
+            # restate the otelcol_ series one layer down and disagree with
+            # them at the edges.
             - source_labels: [__name__]
               regex: 'otelcol_.*'
               action: keep
@@ -213,15 +213,11 @@ processors:
         action: upsert
 
 exporters:
-  # Traces stay on the SigNoz demo backend until Infra chooses the trace store
-  # (ClickHouse or Tempo, docs/plans/telemetry-stack-recommendation.html).
-  otlp/signoz:
-    # Demo-only override: upstream SigNoz's own compose file (which named this
-    # host signoz-otel-collector) is deprecated in favor of the Foundry
-    # installer, whose ingester container is named signoz-ingester-1.
-    endpoint: signoz-ingester-1:4317
-    tls:
-      insecure: true
+  # Traces go to whichever trace store Infra chooses (ClickHouse or Tempo,
+  # docs/plans/telemetry-stack-recommendation.html); locally, Tempo. OTLP/http
+  # like the exporters below, because gRPC on 4317 is closed estate-wide.
+  otlphttp/traces:
+    endpoint: ${env:TRACES_OTLP_ENDPOINT:-http://tempo:4318}
     sending_queue: &queue
       enabled: true
       storage: file_storage
@@ -256,7 +252,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]
-      exporters: [otlp/signoz]
+      exporters: [otlphttp/traces]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/allowlist, resource, batch]

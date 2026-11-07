@@ -1,11 +1,9 @@
-# The local stack: NATS, CouchDB, the collector, and the stores behind it —
-# Loki (logs), Mimir (metrics), Grafana, and SeaweedFS standing in for S3.
-# The store and collector config files are the ones handed to Infra (plan R6,
-# deploy/HANDOFF.md); only the environment below is local.
-#
-# Traces still go to SigNoz until Infra chooses the trace store. SigNoz is NOT
-# here — it ships its own compose file and duplicating it would drift. Start it
-# separately if you need traces; everything else runs without it.
+# The local stack: the two reference services, NATS, CouchDB, the collector,
+# and the stores behind it — Loki (logs), Mimir (metrics), Tempo (traces),
+# Grafana, and SeaweedFS standing in for S3. The collector, Loki, Mimir and
+# Grafana config files are the ones handed to Infra (plan R6,
+# deploy/HANDOFF.md); only the environment below is local. Tempo is local only:
+# Infra has not chosen the production trace store.
 #
 # 🔒 Dummy data only (ADR-0022).
 
@@ -49,6 +47,27 @@ services:
       - "5984:5984"
     volumes:
       - couchdb-data:/opt/couchdb/data
+
+  # The services do not create their database. Reuses the CouchDB image for
+  # its curl.
+  couchdb-init:
+    image: couchdb:3.5
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        i=0
+        until curl -sf http://admin:password@couchdb:5984/_up >/dev/null; do
+          i=$$((i + 1)); [ "$$i" -gt 120 ] && echo "couchdb never came up" && exit 1
+          sleep 1
+        done
+        # 412: created by an earlier run on this volume.
+        code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT http://admin:password@couchdb:5984/kyc)
+        case "$$code" in
+          201|202|412) echo "database kyc ready" ;;
+          *) echo "PUT /kyc returned $$code" && exit 1 ;;
+        esac
+    depends_on:
+      - couchdb
 
   # Local S3. One bucket per store, as in production (plan, starting point).
   # Master, volume and filer here; the S3 gateway is its own service below.
@@ -122,11 +141,21 @@ services:
       seaweedfs-s3:
         condition: service_healthy
 
+  # Local only, on local disk (header). The image creates /var/tempo for its
+  # own uid, so a fresh volume starts with the right owner.
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
   grafana:
     image: grafana/grafana:12.2.0
     environment:
       MIMIR_URL: http://mimir:9009/prometheus
       LOKI_URL: http://loki:3100
+      TEMPO_URL: http://tempo:3200
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       # Alert email goes to Mailpit locally; SES (or any relay) in production.
       GF_SMTP_ENABLED: "true"
@@ -140,6 +169,7 @@ services:
     depends_on:
       - loki
       - mimir
+      - tempo
       - mailpit
 
   # The local mail catcher (plan Q13): every alert email lands here, readable
@@ -172,9 +202,8 @@ services:
       - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
       - collector-queue:/var/lib/otelcol/storage
     ports:
-      # Demo-only: host 4318 is taken by SigNoz's own Foundry-installed
-      # ingester, so this collector's host mapping moved to 4319. Point
-      # Otlp:Endpoint at http://localhost:4319 when running the services.
+      # Demo-only host port, kept from when SigNoz's ingester held 4318. A
+      # service run on the host sets Otlp:Endpoint to http://localhost:4319.
       - "4319:4318"   # OTLP http/protobuf. 4317 is deliberately not exposed
     depends_on:
       queue-permissions:
@@ -185,14 +214,48 @@ services:
         condition: service_started
       mimir:
         condition: service_started
+      tempo:
+        condition: service_started
+
+  # The reference services, built from this source (samples/Dockerfile;
+  # deploy/README.md says why not from packages). They reach CouchDB as
+  # "couchdb", the host the collector's url.full rule keeps.
+  screening-worker:
+    build:
+      context: ..
+      dockerfile: samples/Dockerfile
+      args:
+        PROJECT: Screening.Worker
+    environment: &service-env
+      Otlp__Endpoint: http://collector:4318
+      CouchDb__Url: http://admin:password@couchdb:5984
+      Nats__Url: nats://nats:4222
+    depends_on: &service-deps
+      couchdb-init:
+        condition: service_completed_successfully
+      nats:
+        condition: service_started
+      collector:
+        condition: service_started
+
+  screening-api:
+    build:
+      context: ..
+      dockerfile: samples/Dockerfile
+      args:
+        PROJECT: Screening.Api
+    environment: *service-env
+    ports:
+      - "5206:8080"   # the port dotnet run uses (launchSettings.json)
+    depends_on: *service-deps
 
 volumes:
   couchdb-data:
   collector-queue:
   seaweedfs-data:
+  tempo-data:
 
-# The collector exports traces to SigNoz on the network below. Create it before
-# starting either stack, and attach SigNoz to it as well:
+# The stack joins this network rather than creating it. Create it once:
 #
 #   docker network create observability
 #

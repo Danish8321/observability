@@ -26,7 +26,7 @@ cd "$(dirname "$0")/../.."
 COLLECTOR_IMAGE=otel/opentelemetry-collector-contrib:0.140.1
 RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0
 NET=raksawi-e2e-svc
-SINK=signoz-ingester-1
+SINK=raksawi-e2e-svc-sink
 SUT=raksawi-e2e-svc-collector
 COUCH=couchdb
 NATSC=nats
@@ -136,6 +136,7 @@ wait_ready() {
 wait_ready "$SINK"
 
 MSYS_NO_PATHCONV=1 docker run -d --name "$SUT" --network "$NET" \
+    -e TRACES_OTLP_ENDPOINT="http://$SINK:4318" \
     -e LOKI_OTLP_ENDPOINT="http://$SINK:4318" \
     -e MIMIR_OTLP_ENDPOINT="http://$SINK:4318" \
     -v "$(pwd)/deploy/collector":/etc/otelcol:ro \
@@ -383,10 +384,9 @@ present 'otelcol_exporter_queue_size' 'exporter queue depth'
 present 'otelcol_process_memory_rss_bytes' 'collector memory'
 
 # The same endpoint restates those one layer down as the OTLP receiver's own
-# http_server_* and the gRPC exporter's rpc_client_*. They disagree with the
-# otelcol_ series at the edges, so panelling either is a coin toss.
+# http_server_*. They disagree with the otelcol_ series at the edges, so
+# panelling both is a coin toss.
 absent 'http_server_request_duration' "the receiver's own HTTP server metrics"
-absent 'rpc_client_duration' "the exporter's own gRPC client metrics"
 
 # 🔒 up is synthesised per scrape target — 1 reachable, 0 not. It is NOT subject
 # to metric_relabel_configs, so both keeps above let it through, and it is the

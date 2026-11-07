@@ -159,9 +159,9 @@ rather than passing vacuously or being omitted when their prerequisites are
 absent.
 
 `e2e.sh` runs two collectors: the one under test loads
-`deploy/collector/config.yaml` **byte-for-byte unmodified**, and the sink is
-named `signoz-ingester-1` — the endpoint that config already exports to — so
-what is asserted on is what survived the policy. A test that edits the thing it
+`deploy/collector/config.yaml` **byte-for-byte unmodified**, with its exporters'
+endpoint variables pointed at the sink, so what is asserted on is what survived
+the policy. A test that edits the thing it
 is testing proves nothing. It covers the collector enforcement point only; the
 in-process allowlist and the analyzer have their own unit tests.
 

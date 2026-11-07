@@ -13,7 +13,9 @@ why they are shaped this way is [ADR-0040](../adr/0040-alerting-as-code-by-email
 | Collector queue filling | [collector-queue-filling](./collector-queue-filling.md) |
 | Store unreachable: Mimir / Loki | [store-unreachable](./store-unreachable.md) |
 | Alerting heartbeat | [alerting-heartbeat](./alerting-heartbeat.md) |
+| Work abandoned | [work-abandoned](./work-abandoned.md) |
 
 **Owner** for every platform alert: Infra, who operate the collector, the
-stores and Grafana (plan R6). A change to the configuration itself is a pull
+stores and Grafana (plan R6). A service alert (Work abandoned) belongs to the
+team that owns the service. A change to the configuration itself is a pull
 request to this repository.

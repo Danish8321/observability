@@ -1,5 +1,6 @@
 # Platform alerts: the stack watching itself (plan D3, ADR-0040). Service
-# alerts arrive in D4; "a service stopped reporting" in D11, with the register.
+# alerts (plan D4) are the second group, below; "a service stopped reporting"
+# arrives in D11, with the register.
 #
 # 🔒 The collector's own metrics reach Mimir through the collector's Mimir
 # exporter. So every rule on them answers "is the collector reporting", not
@@ -219,3 +220,52 @@ groups:
             If a day passes without it, Grafana or its email delivery is
             down, and no other alert can reach you.
           runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/alerting-heartbeat.md
+
+  # Service alerts: what a service's own metrics say about its work (plan D4,
+  # thresholds plan M9). Like the collector rules they ignore staging, and a
+  # failed query is OK: "Store unreachable: Mimir" already says so.
+  - orgId: 1
+    name: services
+    folder: Services
+    interval: 1m
+    rules:
+      - uid: work-abandoned
+        title: Work abandoned
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              # A reason abandoned for the first time arrives as a new series
+              # already at 1, which increase() alone never sees; the second
+              # half catches a series younger than the window. 10m, so one
+              # abandonment stays true through the 5m "for".
+              expr: |
+                sum by (deployment_environment_name, job, reason) (
+                    increase(screening_applications_abandoned{deployment_environment_name!="staging"}[10m]) > 0
+                  or
+                    (screening_applications_abandoned{deployment_environment_name!="staging"}
+                      unless screening_applications_abandoned{deployment_environment_name!="staging"} offset 10m)
+                )
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: service
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.deployment_environment_name }}) abandoned applications: {{ $labels.reason }}."
+          description: >-
+            Screening failed permanently. Each submitter was told 202, the
+            application stays "received", and nothing retries it.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/work-abandoned.md

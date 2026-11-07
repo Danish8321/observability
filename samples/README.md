@@ -165,23 +165,23 @@ a diagnostic read should not become a route to personal data.
 ## Run it
 
 ```sh
-docker network create observability
-
-# SigNoz's own docker-compose install (deploy/docker in the upstream repo) is
-# deprecated — install via the Foundry installer instead, then finish the
-# one-time org signup at http://localhost:8080 before OTLP receivers come up:
-curl -fsSL https://signoz.io/foundry.sh | bash
-foundryctl cast -f casting.yaml
-
-# SigNoz's Foundry ingester already owns host port 4318, so this repo's own
-# collector is remapped to 4319 (deploy/docker-compose.yaml) — point services
-# at it explicitly:
-docker compose -f deploy/docker-compose.yaml up -d
-curl -X PUT http://admin:password@localhost:5984/kyc
-
-Otlp__Endpoint=http://localhost:4319 dotnet run --project samples/Screening.Api      # terminal 1
-Otlp__Endpoint=http://localhost:4319 dotnet run --project samples/Screening.Worker   # terminal 2
+docker network create observability   # once
+docker compose -f deploy/docker-compose.yaml up -d --build --wait
 ```
+
+The local stack ([`deploy/`](../deploy/README.md)) runs both services, built
+from this source, with screening-api on `localhost:5206`, and Grafana on
+`localhost:3000` (admin/admin). To run one under `dotnet run` instead, stop its
+container and point it at the collector's host port:
+
+```sh
+docker compose -f deploy/docker-compose.yaml stop screening-worker
+Otlp__Endpoint=http://localhost:4319 dotnet run --project samples/Screening.Worker
+```
+
+From the host it reaches CouchDB as `localhost`, so the collector drops its
+`url.full`: the rule keeps it only for the CouchDB hosts it names (`couchdb`,
+`couchdb.raksawi.internal`).
 
 ### Happy path
 
@@ -223,13 +223,16 @@ The trace shows two retry events, then an error status, then
 
 In order — each step fails differently.
 
-1. Collector logs show received spans → export works (port **4319** in this
-   demo's remapped compose, 4318 upstream default — never 4317)
-2. One service in SigNoz → export works end to end
+In Grafana, Explore:
+
+1. `otelcol_receiver_accepted_spans_total` rising in Mimir → services reach the
+   collector (4318 inside the stack, **4319** from the host — never 4317)
+2. One service in Tempo → export works end to end
 3. Two services on one trace → HTTP propagation works
 4. NATS hop on the same trace → **most likely step to fail**
 5. `url.full` reads `/kyc/{docid}` → redaction is on
-6. Search by `correlation.id` and get the whole workflow → this is the demo
+6. `{ span.correlation.id = "…" }` in TraceQL returns the whole workflow → this
+   is the demo
 
 ## Honest limits
 

@@ -1,17 +1,13 @@
 # The e2e sink. Stands in for the store so that what is asserted on is
 # telemetry that came out of the collector under test, after its policy ran.
 #
-# Named signoz-ingester-1 by the container, which is the endpoint the shipped
-# deploy/collector/config.yaml already exports traces to. Logs and metrics go
-# to Loki and Mimir over OTLP/http; the e2e scripts point those exporters here
-# through their endpoint environment variables, the same knob Infra sets. So
-# that config runs byte-for-byte unmodified. A test that edits the thing it is
-# testing proves nothing.
+# The shipped deploy/collector/config.yaml sends traces, logs and metrics over
+# OTLP/http, each to an endpoint from the environment. The e2e scripts point
+# all three here, the same knob Infra sets, so that config runs byte-for-byte
+# unmodified. A test that edits the thing it is testing proves nothing.
 receivers:
   otlp:
     protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
 

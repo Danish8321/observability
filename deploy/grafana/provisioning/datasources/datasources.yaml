@@ -3,8 +3,8 @@
 # from the environment; uids are fixed because dashboards and alert rules
 # reference them.
 #
-# No trace data source yet: Infra has not chosen the trace store (ClickHouse or
-# Tempo). Traces stay in SigNoz until then.
+# Tempo is the local stack's trace store. Infra has not chosen production's
+# (ClickHouse or Tempo); the Tempo entry holds only if it is Tempo.
 apiVersion: 1
 
 datasources:
@@ -20,3 +20,15 @@ datasources:
     type: loki
     url: ${LOKI_URL}
     editable: false
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    url: ${TEMPO_URL}
+    editable: false
+    jsonData:
+      # Explore then searches through the data source proxy to Tempo's HTTP
+      # API, the path e2e-demo.sh checks. Streaming needs gRPC from Tempo
+      # (stream_over_http_enabled) and cannot be checked with curl.
+      streamingEnabled:
+        search: false

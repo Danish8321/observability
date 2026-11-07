@@ -9,7 +9,7 @@
 #
 # Runs as its own compose project with its own volumes, removed on exit, so a
 # local stack you are using keeps its data. It does need that stack's ports
-# free. Traces are not covered: the trace store is not chosen yet.
+# free. Traces are e2e-demo.sh's: it reads one back from Tempo through Grafana.
 set -eu
 
 cd "$(dirname "$0")/../.."
@@ -35,7 +35,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The compose file attaches to this network so SigNoz can join it.
+# The compose file joins this network rather than creating it.
 docker network create observability >/dev/null 2>&1 || true
 
 echo "== bringing up the local stack =="

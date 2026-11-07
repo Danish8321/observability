@@ -4,24 +4,23 @@
 # because a test that reads configuration verifies intent, not outcome.
 #
 # Shape: two collectors. The one under test runs deploy/collector/config.yaml
-# BYTE-FOR-BYTE UNMODIFIED. The sink is named signoz-ingester-1, which is the
-# endpoint that config already exports to, and writes what it receives to a
-# file. So what is asserted on is what survived the policy. A test that edits
-# the thing it is testing proves nothing, which is why the config is not
-# templated, patched, or overlaid here.
+# BYTE-FOR-BYTE UNMODIFIED, with its exporters' endpoint variables pointed at
+# the sink, which writes what it receives to a file. So what is asserted on is
+# what survived the policy. A test that edits the thing it is testing proves
+# nothing, which is why the config is not templated, patched, or overlaid here.
 #
 # Scope, stated honestly: this exercises the COLLECTOR enforcement point
 # (ADR-0009) — the only one that reaches agent-instrumented services. The
 # in-process allowlist is covered by unit tests, and the analyzer by the
-# compilation tests. A full-stack run through Screening.Api and SigNoz would
-# also exercise CouchDbUrlPolicy; that is a larger fixture and is not this.
+# compilation tests. The reference services running through it, which also
+# exercises CouchDbUrlPolicy, is e2e-instrumented.sh.
 set -eu
 
 cd "$(dirname "$0")/../.."
 
 IMAGE=otel/opentelemetry-collector-contrib:0.140.1
 NET=raksawi-e2e
-SINK=signoz-ingester-1
+SINK=raksawi-e2e-sink
 SUT=raksawi-e2e-collector
 PORT=14318
 
@@ -77,6 +76,7 @@ MSYS_NO_PATHCONV=1 docker run -d --name "$SINK" --network "$NET" \
     "$IMAGE" --config=/etc/otelcol/config.yaml >/dev/null
 
 MSYS_NO_PATHCONV=1 docker run -d --name "$SUT" --network "$NET" \
+    -e TRACES_OTLP_ENDPOINT="http://$SINK:4318" \
     -e LOKI_OTLP_ENDPOINT="http://$SINK:4318" \
     -e MIMIR_OTLP_ENDPOINT="http://$SINK:4318" \
     -v "$(pwd)/deploy/collector":/etc/otelcol:ro \

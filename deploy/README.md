@@ -11,7 +11,7 @@ after the demo, and the boundary that makes deferring them safe is that
 ```
 service ──────OTLP/http──────▶ collector ──┬─▶ Loki   (logs)    ─┐
                :4318          ▲            ├─▶ Mimir  (metrics) ─┼─▶ S3 ─ Grafana :3000
-                              │            └─▶ SigNoz (traces, until Infra picks a trace store)
+                              │            └─▶ Tempo  (traces; local disk, production's store is Infra's choice)
 NATS ──JSON──▶ nats-exporter ─┘
      :8222                 scraped :7777
 ```
@@ -29,24 +29,25 @@ later.
 
 The collector, Loki, Mimir and Grafana configuration here is what Infra deploys
 ([`HANDOFF.md`](HANDOFF.md), plan R6); the local stack runs the same files,
-with SeaweedFS standing in for S3.
+with SeaweedFS standing in for S3 and Tempo, on local disk, for the trace store
+Infra has yet to choose. It also runs the two reference services.
 
 ```sh
 docker network create observability   # once
-docker compose -f deploy/docker-compose.yaml up -d --wait
+docker compose -f deploy/docker-compose.yaml up -d --build --wait
 .claude/scripts/e2e-stack.sh          # stores answer and Grafana sees them
 .claude/scripts/e2e-alerting.sh       # each platform alert emails (~15 min)
+.claude/scripts/e2e-demo.sh           # an abandoned application: its trace and its email (~10 min)
 ```
 
-Grafana is on `localhost:3000` (admin/admin locally); alert email lands in
-Mailpit on `localhost:8025`. Traces still go to the
-SigNoz demo backend, which runs as its own stack on the same network:
+Grafana is on `localhost:3000` (admin/admin locally), screening-api on
+`localhost:5206`; alert email lands in Mailpit on `localhost:8025`.
 
-```sh
-git clone -b main https://github.com/SigNoz/signoz.git
-cd signoz/deploy/docker
-docker compose up -d
-```
+**The services are built from source, not from packages.** Plan D4 runs the
+demo "on preview packages"; here `samples/Dockerfile` builds them from this
+repository with the `ProjectReference`s they already have, so the stack runs
+the working tree and needs no feed. Consuming the packages is D6a's
+local-feed smoke test.
 
 ## The NATS scrape
 

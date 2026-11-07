@@ -1,0 +1,10 @@
+# samples/Dockerfile builds from the repository root and needs only these.
+# Host bin/ and obj/ stay out: they hold the host's restore and build output,
+# and the image restores and builds its own.
+*
+!Directory.Build.props
+!raksawi.snk
+!src
+!samples
+**/bin
+**/obj

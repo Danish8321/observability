@@ -1,0 +1,26 @@
+# Tempo, monolithic, local stack only. Infra has not chosen the production
+# trace store (ClickHouse or Tempo), so unlike loki.yaml and mimir.yaml this
+# file is not handed over (deploy/HANDOFF.md) and keeps traces on local disk
+# rather than S3. Like SeaweedFS, it stands in.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          # All interfaces: the collector reaches it across the compose network.
+          endpoint: 0.0.0.0:4318
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+# Phones home to grafana.com otherwise.
+usage_report:
+  reporting_enabled: false

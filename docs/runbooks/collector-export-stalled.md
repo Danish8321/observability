@@ -9,7 +9,7 @@ until it is full, then drops new data (see
 | Exporter | Store |
 |---|---|
 | `otlphttp/loki` | Loki (logs) |
-| `otlp/signoz` | the trace store |
+| `otlphttp/traces` | the trace store (Tempo, locally) |
 
 It never names `otlphttp/mimir`: the evidence for this alert travels through
 that exporter, so a stalled Mimir export shows as
@@ -39,6 +39,6 @@ reply on every retry.
 - The store is up but rejects the data: authentication, a limit
   (`429`, ingestion rate), or out-of-order samples after a long outage.
 - The endpoint is wrong after a change to `LOKI_OTLP_ENDPOINT`,
-  `MIMIR_OTLP_ENDPOINT` or the trace exporter.
+  `MIMIR_OTLP_ENDPOINT` or `TRACES_OTLP_ENDPOINT`.
 
 **Owner:** Infra.
