@@ -21,7 +21,7 @@ dotnet restore
 
 Requires .NET 10 SDK (multi-targets `net48;net10.0` — see `Directory.Build.props`). No other tooling needed for the library/tests.
 
-For running samples end to end (collector, NATS, CouchDB, SigNoz), see `samples/README.md` — install SigNoz via its Foundry installer, not the old docker-compose path (deprecated), and note the demo collector's host OTLP port is remapped to 4319 (Foundry's ingester owns 4318 on that machine).
+For running samples end to end, see `samples/README.md`: one compose file runs the services, collector, NATS, CouchDB, the stores and Grafana. A service run on the host reaches the collector on port 4319.
 
 ## Everyday commands
 

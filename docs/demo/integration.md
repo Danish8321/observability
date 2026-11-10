@@ -69,20 +69,22 @@ than one error.
 ## Step 4 — run the stack
 
 ```sh
-git clone -b main https://github.com/SigNoz/signoz.git
-cd signoz/deploy/docker && docker compose up -d
+docker network create observability   # once
+docker compose -f deploy/docker-compose.yaml up -d --build --wait
 ```
 
-Then the collector from [`../../deploy/collector/config.yaml`](../../deploy/collector/config.yaml).
+That runs the collector, the stores and Grafana on `localhost:3000`
+([`../../deploy/README.md`](../../deploy/README.md)). A service run on the host
+reaches the collector on `localhost:4319`, not the 4318 in Step 2.
 
 ## Step 5 — the walk-through, before trusting anything
 
 In order. Each step fails differently, and stopping at the first failure saves
 guessing later.
 
-1. **Is the service exporting?** Collector logs show received spans. Nothing
-   here means wrong endpoint or wrong port — it is 4318, not 4317
-2. **Does one service appear in SigNoz?** If yes, export works end to end
+1. **Is the service exporting?** `otelcol_receiver_accepted_spans_total` rises in Mimir. Flat
+   means wrong endpoint or wrong port — never 4317
+2. **Does one service appear in Tempo?** If yes, export works end to end
 3. **Do two services appear on one trace?** HTTP propagation works
 4. **Does the NATS hop join the same trace?** The step most likely to fail
 5. **Are CouchDB calls present, and is `url.full` redacted?** Look at an actual

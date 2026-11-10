@@ -26,18 +26,18 @@ You are the last line for anything not source-controlled. Nothing reaches storag
 
 ## Demo infra (what exists today)
 
-`deploy/docker-compose.yaml` — NATS (JetStream flag on, but demo only uses core NATS — no redelivery), CouchDB, and the collector. SigNoz is deliberately **not** in this compose file (avoids drift from upstream) — install it separately, then bring this stack up:
+`deploy/docker-compose.yaml` — the two reference services built from source, NATS (JetStream flag on, but demo only uses core NATS — no redelivery), CouchDB, the collector, Loki, Mimir and Grafana on SeaweedFS standing in for S3, Tempo on local disk, and Mailpit catching alert email. What differs in production is listed in [`deploy/HANDOFF.md`](../../deploy/HANDOFF.md); Tempo is local only, because the production trace store is still to be chosen.
 
 ```sh
-curl -fsSL https://signoz.io/foundry.sh | bash   # SigNoz's docker-compose install is deprecated; use Foundry
-docker compose -f deploy/docker-compose.yaml up -d
+docker network create observability   # once
+docker compose -f deploy/docker-compose.yaml up -d --build --wait
 ```
 
-SigNoz's Foundry ingester already owns host port **4318**, so this repo's own collector is remapped to **4319** in `deploy/docker-compose.yaml` (host side only — the collector still listens on 4318 inside its container, and estate-wide production is still 4318). Point service `Otlp__Endpoint` at `http://localhost:4319` when running samples against this compose stack. See `samples/README.md` for the full worked sequence, including `Screening.Api`'s actual port (5206).
+The collector's host port is **4319** in `deploy/docker-compose.yaml` (host side only — it still listens on 4318 inside its container, the services in the stack use that, and estate-wide production is still 4318). A service run on the host points `Otlp__Endpoint` at `http://localhost:4319`. See `samples/README.md` for the full worked sequence, including `Screening.Api`'s port (5206).
 
 🔒 This compose file is dummy-data-only and ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — sampling is 1.0 and there is no auth hardening (ADR-0022).
 
-The allowlist itself is *not* demo-scoped any more: `transform/allowlist` is applied in this config, fails closed (`error_mode: propagate`), and is the same policy production will run. What remains demo-shaped is everything around it — exporter target, storage sizing, credentials, sampling.
+The allowlist itself is *not* demo-scoped any more: `transform/allowlist` is applied in this config, fails closed (`error_mode: propagate`), and is the same policy production will run. What remains demo-shaped is everything around it — storage sizing, credentials, sampling.
 
 ## Sampling and boot-failure behavior
 
@@ -60,6 +60,10 @@ Data classes 3 (restricted PII) and 4 (secrets) must appear **nowhere** — not 
 | `test-full.sh` | above + `otelcol validate` on collector config | exists |
 | `contract.sh` | collector policy and declared allowlist express the same rules | exists — the code/collector comparison passes; the `otelcol validate` step **fails** unless `otelcol` or a running docker daemon is available, by design rather than skipping |
 | `e2e.sh` | assertions against *received* telemetry, not configuration — required because Rev 3 Gate 3 needs redaction verified against stored data, not intent | exists — nine assertions pass (2026-08-25); needs a running docker daemon and **fails** without one, by design |
+| `e2e-instrumented.sh` | what the two reference services actually emit, through the shipped collector config | exists — needs docker, like every script below |
+| `e2e-stack.sh` | the local stack stores synthetic logs and metrics, and Grafana reads them back | exists |
+| `e2e-alerting.sh` | each platform alert emails when its failure is caused, and links its runbook (~15 min) | exists |
+| `e2e-demo.sh` | a failing application's trace opens in Tempo through Grafana, and "Work abandoned" emails (~10 min) | exists |
 
 `contract.sh` compares text and `otelcol validate` parses the OTTL. Neither watches a span go through. Don't claim redaction or allowlist enforcement is "in place" from either. `e2e.sh` is the one that does: it stands up the shipped `deploy/collector/config.yaml` **unmodified** in front of a sink container, its exporters pointed there by their endpoint variables, posts OTLP/JSON probe telemetry, and greps what the sink received. Editing the config it tests would prove nothing, so it is not templated or overlaid.
 
@@ -69,7 +73,7 @@ One operational note the demo stack shares: a fresh docker named volume is root-
 
 ## Manual verification checklist (today)
 
-1. Collector logs show received spans (port 4318 estate-wide; **4319** against this repo's demo compose — Foundry's own ingester holds 4318 there)
+1. `otelcol_receiver_accepted_spans_total` rises in Mimir (port 4318 estate-wide; **4319** from the host against this repo's compose)
 2. One service reaches the backend end to end
 3. Two services show up on one trace (HTTP propagation across the hop)
 4. A message hop (NATS) lands on the same trace — most likely failure point (confirmed live 2026-08-11: the worker's process span was starting a disconnected new root trace instead of joining the producer's — fixed, but re-verify this on any consumer span you add)

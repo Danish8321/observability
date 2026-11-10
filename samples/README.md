@@ -216,8 +216,8 @@ curl http://localhost:5206/applications/app-fail-1004
 # status: received — never screened
 ```
 
-The trace shows two retry events, then an error status, then
-`screening.abandoned`. The 202 is still sitting in the caller's log.
+The trace shows two retry events, then an error status. The 202 is still
+sitting in the caller's log.
 
 ## Verify the wiring before trusting anything
 

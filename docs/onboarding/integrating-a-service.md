@@ -127,7 +127,7 @@ configuration errors, which is a different thing.
 **Port 4318, http/protobuf.** Not 4317, not gRPC — 4317 is closed
 estate-wide and gRPC is unsupported on the 4.8 target, so the estate's
 exporters stay uniform. Against this repo's own demo compose stack the host
-mapping is remapped to **4319** (SigNoz's ingester holds 4318 there); see
+mapping is **4319**; see
 [`infra.md`](./infra.md).
 
 ### A3. Environment variables
@@ -539,7 +539,7 @@ then ADR-0002 / 0003 / 0017 / 0018 / 0025 / 0026 / 0028.
 ## Next
 
 [`backend-and-dashboards.md`](./backend-and-dashboards.md) continues the route
-past A12: SigNoz up, the collector alongside it, then the four dashboards built
+past A12: the local stack up, then the four dashboards built
 from [`../diagnostic-queries.md`](../diagnostic-queries.md) — including an
 honest account of which panels have no data source yet.
 

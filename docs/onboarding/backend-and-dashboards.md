@@ -11,35 +11,30 @@ store-neutrally in [`../diagnostic-queries.md`](../diagnostic-queries.md)
 ([ADR-0016](../adr/0016-diagnostic-queries-are-the-durable-asset.md)); this
 document is that specification built once, against the demo store.
 
-🔒 **Everything below is the demo stack** — SigNoz, chosen without a bake-off
-([`deploy/README.md`](../../deploy/README.md)), no access tiers, sampling at
-1.0. Production KYC traffic does not pass through it
+🔒 **Everything below is the local stack** — Grafana over Loki, Mimir and
+Tempo ([`deploy/README.md`](../../deploy/README.md)), no access tiers, sampling
+at 1.0. Production KYC traffic does not pass through it
 ([ADR-0022](../adr/0022-demo-first-resequencing.md)). The last section says
 what has to be true before that changes.
 
 ---
 
-## Step D1 — the store
+## Step D1 — the stack
 
-SigNoz ships its own compose file. Do not copy it into this repo; it drifts.
-
-```sh
-docker network create observability      # both stacks attach to this
-git clone -b main https://github.com/SigNoz/signoz.git
-cd signoz/deploy/docker
-docker compose up -d
-```
-
-Attach SigNoz to the `observability` network, because the collector exports to
-it by container name (`signoz-ingester-1:4317`, `deploy/collector/config.yaml`).
-Renaming that container silently breaks export with no error at the service.
-
-## Step D2 — the collector, alongside
+One compose file runs the collector, the stores, Grafana and the two reference
+services.
 
 ```sh
-cd <this repo>
-docker compose -f deploy/docker-compose.yaml up -d
+docker network create observability      # once; the compose file joins it
+docker compose -f deploy/docker-compose.yaml up -d --build --wait
 ```
+
+Grafana is on `localhost:3000` (admin/admin), with its data sources provisioned
+from file. Loki, Mimir and Grafana run the files Infra deploys
+([`deploy/HANDOFF.md`](../../deploy/HANDOFF.md)). Tempo is a local stand-in on
+local disk, because Infra has not chosen production's trace store.
+
+## Step D2 — the collector, in the middle
 
 Two hops rather than one, deliberately: the collector is where the allowlist,
 pattern scanning and agent-service governance attach
@@ -48,11 +43,11 @@ pattern scanning and agent-service governance attach
 [0009](../adr/0009-governing-agent-instrumented-services.md)). Services point
 at the collector, never at the store.
 
-**Port 4319, not 4318**, on this compose. SigNoz's own ingester already holds
-host 4318, so this collector's host mapping moved. Inside the network it is
-still 4318. `Otlp:Endpoint = http://localhost:4319` from the host.
+**Port 4319, not 4318, from the host.** Inside the network the collector is on
+4318, which is what the services in the stack use. A service run on the host
+sets `Otlp:Endpoint = http://localhost:4319`.
 
-That compose also brings up `nats-exporter`, the one thing here the collector
+The compose file also brings up `nats-exporter`, the one thing here the collector
 *pulls* from rather than receives. NATS runs none of our code and has no agent,
 so its health arrives by scrape or not at all
 ([ADR-0030](../adr/0030-broker-health-arrives-by-scrape.md)). A dead exporter is
@@ -64,11 +59,13 @@ check `curl localhost:7777/metrics` before suspecting the pipeline.
 Three checks, in this order. Each isolates a different failure; a dashboard
 built before these pass will look empty and tell you nothing about why.
 
-1. **Spans arrive at the collector.** `docker logs` on the collector container.
-   Nothing here means endpoint or firewall, not your code.
-2. **Spans arrive at the store.** SigNoz Traces, filtered to your
-   `service.name`. Present at the collector but absent here is an export
-   failure — check the collector's own logs for `otlp/signoz`.
+1. **Spans arrive at the collector.** `otelcol_receiver_accepted_spans_total`
+   rising in Mimir (Grafana, Explore). Flat means endpoint or firewall, not
+   your code.
+2. **Spans arrive at the store.** Tempo in Explore, with
+   `{ resource.service.name = "your-service" }`. Accepted at the collector but
+   absent here is an export failure — check the collector's own logs for
+   `otlphttp/traces`.
 3. **A dropped key is visible as a dropped key.** Query the counter
    `raksawi.telemetry.attributes.dropped`, dimensioned by `attribute.key` and
    `telemetry.signal`. This is the
@@ -112,7 +109,7 @@ first SQL service onboards, not before.
 
 ## Dashboard 2 — Trace explorer
 
-Mostly SigNoz's built-in trace search. What makes it work is that the
+Mostly Grafana's Tempo search (Explore, TraceQL). What makes it work is that the
 correlation identifiers are declared Class 2 keys and survive to the store.
 
 | # | Panel | Entry point | Status |
@@ -208,11 +205,11 @@ perfect health while dead — Rev 3 **I3.8**, **I3.9**.
 | 4.4 | Queue depth and queue age | `otelcol_exporter_queue_size` | ⚠️ depth only, no age metric |
 | 4.5 | Export failure rate | `otelcol_exporter_send_failed_spans_total` | ✅ |
 | 4.6 | Collector memory, ingestion, disk | `otelcol_process_memory_rss_bytes` | ⚠️ no disk metric exists |
-| 4.7 | Query latency | SigNoz's own telemetry | ⚠️ |
+| 4.7 | Query latency | the stores' own telemetry | ❌ nothing scrapes it |
 | 4.8 | Backup status, age of last **restored** backup | nothing | ❌ |
 | 4.9 | **Dropped attribute keys, by key** | `raksawi.telemetry.attributes.dropped` | ✅ |
 | 4.10 | W3C format warnings, by service | `raksawi.telemetry.trace_context.corrected` | ✅ .NET 10 |
-| 4.11 | Dead man's switch, four states | alerting | ❌ |
+| 4.11 | Dead man's switch, four states | alerting | ⚠️ no service state until the register |
 
 **4.3 through 4.6 were one piece of work, and it is done.** The collector's
 `service.telemetry.metrics.level` was already `detailed`, so the data existed
@@ -232,7 +229,8 @@ than being unwired:
   disk the durability story depends on is unmeasured — while its size is still
   a placeholder (Q13).
 
-4.7 is unaffected: it reads SigNoz's own telemetry, not the collector's.
+4.7 is a different gap: Loki, Mimir and Tempo publish their own query metrics,
+and the collector scrapes only NATS and itself.
 
 🔒 **4.5 reads zero during exactly the outage it is for.**
 `otelcol_exporter_send_failed_spans_total` increments when an export attempt
@@ -252,8 +250,12 @@ it.
 
 🔒 **None of this detects the collector being dead.** A dead collector
 synthesises no `up` and stops scraping itself; the series just stop, and absence
-looks identical to a quiet period. That is 4.11's job, it needs alerting rather
-than a panel, and it is still unbuilt.
+looks identical to a quiet period. That is 4.11's job and it needs alerting
+rather than a panel: "Collector not reporting", with "Export stalled" and
+"Store unreachable" alongside it, in
+`deploy/grafana/provisioning/alerting/rules.yaml`
+([ADR-0040](../adr/0040-alerting-as-code-by-email.md)). The fourth state, a
+service that stopped reporting, needs the register (4.1).
 
 **4.10 reads a gauge, not a counter.**
 [ADR-0005](../adr/0005-enforcing-the-framework-wiring.md) specifies that the
@@ -296,10 +298,11 @@ order of value per unit of work:
 | Work | Unblocks |
 |---|---|
 | `AddProcessInstrumentation()` | 1.4 |
-| Service register file (ADR-0021) | 4.1 |
+| Service register file (ADR-0021) | 4.1, the last state of 4.11 |
 | Tail sampling policy | 2.6 |
 | Move the sample to JetStream, with a DLQ | 3.1, 3.2, 3.3, 3.6 |
-| Synthetic probe, alerting, backup restore check | 4.2, 4.8, 4.11 |
+| Scrape the stores' own metrics | 4.7 |
+| Synthetic probe, backup restore check | 4.2, 4.8 |
 
 **Replay produces duplicates.** Every panel above derived from span counts
 spikes when a backlog drains — an artifact, not an incident (Rev 3 **I3.6**).
@@ -320,6 +323,7 @@ configuration polish:
 - **Sampling set from measured volume**, not 1.0.
 - **Queue sized from a measured restore window**, not the placeholder in
   `deploy/collector/config.yaml`.
-- **The bake-off actually run.** SigNoz here was chosen without one, and
-  everything above is portable precisely because the questions — not their
-  serialised form — are the durable asset (ADR-0016).
+- **The production trace store chosen**, which is Infra's call
+  ([`deploy/HANDOFF.md`](../../deploy/HANDOFF.md)). Tempo here is a local
+  stand-in, and everything above is portable precisely because the questions —
+  not their serialised form — are the durable asset (ADR-0016).
