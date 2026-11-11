@@ -195,6 +195,9 @@ services:
       # Passed through only when set: e2e-alerting.sh sets it to break the Loki
       # export on purpose. Unset, config.yaml's default applies.
       LOKI_OTLP_ENDPOINT:
+      # Same pass-through: set it to 100 to keep every healthy trace while
+      # working locally. Unset, config.yaml keeps 10% of them (ADR-0039).
+      TRACES_BASE_SAMPLE_PERCENT:
       # Not staging: the platform alerts ignore staging (plan R5), and this
       # stack has to fire them.
       DEPLOYMENT_ENVIRONMENT_NAME: local

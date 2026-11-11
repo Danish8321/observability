@@ -35,7 +35,7 @@ docker compose -f deploy/docker-compose.yaml up -d --build --wait
 
 The collector's host port is **4319** in `deploy/docker-compose.yaml` (host side only — it still listens on 4318 inside its container, the services in the stack use that, and estate-wide production is still 4318). A service run on the host points `Otlp__Endpoint` at `http://localhost:4319`. See `samples/README.md` for the full worked sequence, including `Screening.Api`'s port (5206).
 
-🔒 This compose file is dummy-data-only and ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — sampling is 1.0 and there is no auth hardening (ADR-0022).
+🔒 This compose file is dummy-data-only and ships with plaintext demo credentials (CouchDB admin/password). **Do not treat any part of this as a production template** — the sampling numbers are unsized and there is no auth hardening (ADR-0022, ADR-0039).
 
 The allowlist itself is *not* demo-scoped any more: `transform/allowlist` is applied in this config, fails closed (`error_mode: propagate`), and is the same policy production will run. What remains demo-shaped is everything around it — storage sizing, credentials, sampling.
 

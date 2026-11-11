@@ -4,7 +4,8 @@ Date: 2026-08-10
 
 ## Status
 
-Accepted
+Accepted — amended by [ADR-0039](./0039-tail-sampling-at-the-collector.md):
+the explicit value is 1.0, and the collector's tail policy does the sampling.
 
 ## Context
 

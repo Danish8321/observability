@@ -139,6 +139,7 @@ MSYS_NO_PATHCONV=1 docker run -d --name "$SUT" --network "$NET" \
     -e TRACES_OTLP_ENDPOINT="http://$SINK:4318" \
     -e LOKI_OTLP_ENDPOINT="http://$SINK:4318" \
     -e MIMIR_OTLP_ENDPOINT="http://$SINK:4318" \
+    -e TRACES_BASE_SAMPLE_PERCENT=100 \
     -v "$(pwd)/deploy/collector":/etc/otelcol:ro \
     -v "$QUEUE_VOL":/var/lib/otelcol/storage \
     "$COLLECTOR_IMAGE" --config=/etc/otelcol/config.yaml >/dev/null
@@ -212,16 +213,19 @@ dump_received() {
 echo "== waiting for telemetry to reach the sink =="
 # Two batch delays (the library BatchExportProcessor, then the collector batch
 # processor) plus the metric interval. Waits on content rather than a fixed
-# sleep, then takes one more pass so a late metric batch is included.
+# sleep, then takes one more pass so a late metric batch is included. The
+# trace is the slowest: the sampler holds it for its 30s decision wait, and
+# TRACES_BASE_SAMPLE_PERCENT=100 above is what keeps a healthy one (ADR-0039).
 i=0
 dump_received
 while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
+    || ! grep -q 'kyc.applications.submitted process' "$received" 2>/dev/null \
     || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null \
     || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null \
     || ! grep -q 'otelcol_receiver_accepted_spans' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 120 ]; then
-        echo "e2e-instrumented.sh: the worker metric, log or NATS scrape never arrived." >&2
+        echo "e2e-instrumented.sh: the worker metric, trace, log or NATS scrape never arrived." >&2
         echo "--- nats-exporter ---" >&2; docker logs "$NATSEXP" >&2 || true
         echo "--- api ---" >&2; docker logs "$API" >&2 || true
         echo "--- worker ---" >&2; docker logs "$WORKER" >&2 || true

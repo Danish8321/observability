@@ -25,11 +25,13 @@ application; the span carries its `application.id`, and the
 `screen application` spans under it hold each attempt's exception.
 
 ```traceql
-{ resource.service.name = "screening-worker" && name = "kyc.applications.submitted process" && status = error }
+{ resource.service.name = "screening-worker" && span.screening.abandoned = true }
 ```
 
-`not_found` does not match: a missing document is not the worker's own failure,
-so that span's status stays unset. Its one `screen application` child is red.
+Every abandoned trace is stored, whatever the sampling rate (ADR-0039). A
+`not_found` match is not red: a missing document is not the worker's own
+failure, so that span's status stays unset. Its one `screen application` child
+is red.
 
 **Likely causes**
 

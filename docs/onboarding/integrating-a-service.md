@@ -92,7 +92,7 @@ builder.AddRaksawiObservability(o =>
     o.ServiceName = "my-service";        // bare, kebab-case (ADR-0006)
     o.ServiceNamespace = "my-domain";
     o.OtlpEndpoint = new Uri(builder.Configuration["Otlp:Endpoint"] ?? "http://localhost:4318");
-    o.SamplingRatio = 0.1;               // required outside Development (ADR-0010)
+    o.SamplingRatio = 1.0;               // required outside Development; the collector samples (ADR-0010, 0039)
 
     // Your own spans. Without this they are dropped silently.
     o.ActivitySources.Add(MyTelemetry.ActivitySourceName);
@@ -445,7 +445,7 @@ protected void Application_Start()
     {
         o.ServiceName = "my-service";
         o.ServiceNamespace = "my-domain";
-        o.SamplingRatio = 0.1;
+        o.SamplingRatio = 1.0;
         o.ActivitySources.Add(MyTelemetry.ActivitySourceName);
         o.Meters.Add(MyTelemetry.MeterName);
     });
@@ -547,6 +547,6 @@ honest account of which panels have no data source yet.
 Screening service runs the whole flow — `POST /applications` to
 screening-api to CouchDB, NATS publish to screening-worker, retry three
 times, abandon — with fault injection to exercise verification steps 3
-through 6. Its fault-injection block, sampling at 1.0 and compose
+through 6. Its fault-injection block and compose
 credentials are explicitly not production-shaped
 ([ADR-0022](../adr/0022-demo-first-resequencing.md)); do not copy those.

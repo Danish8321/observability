@@ -79,6 +79,7 @@ MSYS_NO_PATHCONV=1 docker run -d --name "$SUT" --network "$NET" \
     -e TRACES_OTLP_ENDPOINT="http://$SINK:4318" \
     -e LOKI_OTLP_ENDPOINT="http://$SINK:4318" \
     -e MIMIR_OTLP_ENDPOINT="http://$SINK:4318" \
+    -e TRACES_BASE_SAMPLE_PERCENT=100 \
     -v "$(pwd)/deploy/collector":/etc/otelcol:ro \
     -v "$QUEUE_VOL":/var/lib/otelcol/storage \
     -p "$PORT":4318 \
@@ -106,13 +107,15 @@ curl -sf -X POST "http://localhost:$PORT/v1/metrics" \
     -H 'Content-Type: application/json' \
     --data-binary @.claude/scripts/e2e/payload-metrics.json >/dev/null
 
-# batch has a 5s timeout; wait for the sink to write rather than guessing.
+# The probe trace is healthy, so TRACES_BASE_SAMPLE_PERCENT=100 above is what
+# keeps it; the sampler still holds it for its 30s decision wait (ADR-0039).
+# Metrics land well before that, so wait on the trace rather than guessing.
 i=0
 dump_received
-while [ ! -s "$received" ]; do
+while ! grep -q 'couchdb span' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 60 ]; then
-        echo "e2e.sh: nothing reached the sink within 60s." >&2
+        echo "e2e.sh: the probe trace did not reach the sink within 120s." >&2
         docker logs "$SUT" >&2 || true
         docker logs "$SINK" >&2 || true
         exit 1

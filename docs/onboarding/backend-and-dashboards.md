@@ -119,15 +119,15 @@ correlation identifiers are declared Class 2 keys and survive to the store.
 | 2.3 | Everything one page load did | `session.id` | ✅ |
 | 2.4 | This message and what caused it | `message.id`, `causation.id` | ✅ |
 | 2.5 | Slowest traces for a route | `http.route`, duration | ✅ |
-| 2.6 | Error traces, kept at 100% | tail sampling policy | ❌ no tail policy |
+| 2.6 | Error traces, kept at 100% | tail sampling policy | ✅ |
 | 2.7 | Every span for this applicant | `application.id` — 🔒 Class 2 | ✅ |
 
-**2.6 does not hold yet.** `deploy/collector/config.yaml` has no
-`tail_sampling` processor. The demo samples at 1.0 head-based, so errors are
-kept only because *everything* is kept. The panel will appear to work and will
-silently stop working the moment sampling drops below 1.0 — which is what
-[ADR-0010](../adr/0010-sampling-defaults.md) expects in production. Treat
-2.6 as unbuilt regardless of what the demo shows.
+**2.6 holds because the collector samples, not the services.** The
+`tail_sampling` processor in `deploy/collector/config.yaml` keeps every trace
+with an error, slower than 2 s or carrying `screening.abandoned`, and 10% of
+the rest ([ADR-0039](../adr/0039-tail-sampling-at-the-collector.md)). It stops
+holding the moment a service lowers its own `SamplingRatio` below 1.0, because
+the collector cannot keep an error trace it never received.
 
 ## Dashboard 3 — Async pipeline health
 
@@ -291,7 +291,7 @@ the specific failure it exists to catch
 
 ## What this leaves
 
-Fifteen panels of thirty are buildable today, six more are partial, and nine
+Sixteen panels of thirty are buildable today, six more are partial, and eight
 have no data source at all. The gaps name concrete missing pieces, in rough
 order of value per unit of work:
 
@@ -299,7 +299,6 @@ order of value per unit of work:
 |---|---|
 | `AddProcessInstrumentation()` | 1.4 |
 | Service register file (ADR-0021) | 4.1, the last state of 4.11 |
-| Tail sampling policy | 2.6 |
 | Move the sample to JetStream, with a DLQ | 3.1, 3.2, 3.3, 3.6 |
 | Scrape the stores' own metrics | 4.7 |
 | Synthetic probe, backup restore check | 4.2, 4.8 |
@@ -320,7 +319,8 @@ configuration polish:
   store that cannot enforce the separation is disqualified from the bake-off
   ([`../phase3/store-bakeoff.md`](../phase3/store-bakeoff.md)) regardless of how
   it performs.
-- **Sampling set from measured volume**, not 1.0.
+- **Sampling set from measured volume**: the tail policy's wait, trace limit
+  and base rate are placeholders (ADR-0039).
 - **Queue sized from a measured restore window**, not the placeholder in
   `deploy/collector/config.yaml`.
 - **The production trace store chosen**, which is Infra's call

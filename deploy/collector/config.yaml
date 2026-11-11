@@ -142,8 +142,8 @@ processors:
           - delete_matching_keys(span.attributes, "^url\\.(full|query)$") where span.attributes["server.address"] != nil and IsMatch(span.attributes["server.address"], "^couchdb(\\.raksawi\\.internal)?$") == false
 
           # Default deny. Families, then the declared Class 2 keys (ADR-0017),
-          # then the enumerated messaging keys — both exact matches, never
-          # prefixes.
+          # then the enumerated messaging keys, then the policy pack's declared
+          # Class 0 and 1 keys — all exact matches, never prefixes.
           #
           # 🔒 messaging. is NOT a family here. The convention is experimental
           # and has moved repeatedly, so it is admitted key by key: a rename
@@ -151,7 +151,7 @@ processors:
           # as telemetry that quietly changes shape. The set is what the
           # reference services actually emitted, dumped at the sink on
           # 2026-09-08 (ADR-0018's empirical half).
-          - keep_matching_keys(span.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$")
+          - keep_matching_keys(span.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$|^(screening\\.abandoned|screening\\.abandon_reason|screening\\.outcome|screening\\.provider|couchdb\\.database|couchdb\\.conflict|application\\.found|application\\.status)$")
 
     metric_statements:
       # Same resource rule as the traces pipeline. Stated twice because the
@@ -203,7 +203,7 @@ processors:
           # enumerated messaging keys the span keep uses — Class 2 is permitted
           # on spans AND logs (Rev 3 D2.1), and a family present on one and
           # missing from the other is drift either way.
-          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$")
+          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$|^(screening\\.abandoned|screening\\.abandon_reason|screening\\.outcome|screening\\.provider|couchdb\\.database|couchdb\\.conflict|application\\.found|application\\.status)$")
 
   # Upsert: the gateway, not the service, says which environment it serves.
   resource:
@@ -211,6 +211,53 @@ processors:
       - key: deployment.environment.name
         value: ${env:DEPLOYMENT_ENVIRONMENT_NAME:-staging}
         action: upsert
+
+  # Which traces are stored (ADR-0039): every trace with an error, every slow
+  # one, every abandoned application, and a share of the rest. Services send
+  # everything (head sampling 1.0), so the decision is made here on whole
+  # traces.
+  #
+  # 🔒 After transform/allowlist, so a policy can only read a governed key.
+  #
+  # 🔒 One gateway instance only. Spans of one trace arriving at two instances
+  # are judged separately, each on half the evidence. More than one instance
+  # needs a trace-ID-aware loadbalancing tier in front (deploy/HANDOFF.md).
+  #
+  # decision_wait counts from a trace's first span. A span arriving after the
+  # decision inherits it, so an error that arrives late on a trace already
+  # dropped is dropped too. 30s covers a worker that handles messages one at a
+  # time and is a few seconds behind; it is not sized from real traffic.
+  tail_sampling:
+    decision_wait: 30s
+    # Traces held in memory while waiting. A cap, not a sizing (HANDOFF.md).
+    num_traces: 50000
+    policies:
+      # An error status, except an HTTP client's 404. The client instrumentation
+      # marks every 4xx an error, and a 404 is CouchDB's ordinary answer to
+      # "does this document exist" — the API asks it before every create, so a
+      # plain status_code policy kept every trace. A 404 that matters turns the
+      # calling span red, and that still matches.
+      - name: errors
+        type: ottl_condition
+        ottl_condition:
+          error_mode: propagate
+          span:
+            - status.code == STATUS_CODE_ERROR and not (kind == SPAN_KIND_CLIENT and attributes["http.response.status_code"] == 404)
+      - name: slow
+        type: latency
+        latency:
+          threshold_ms: 2000
+      # Its own policy because not every abandonment is an error status: a
+      # not_found abandon leaves the span's status unset.
+      - name: abandoned
+        type: boolean_attribute
+        boolean_attribute:
+          key: screening.abandoned
+          value: true
+      - name: base-rate
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: ${env:TRACES_BASE_SAMPLE_PERCENT:-10}
 
 exporters:
   # Traces go to whichever trace store Infra chooses (ClickHouse or Tempo,
@@ -251,7 +298,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, transform/allowlist, resource, batch]
+      processors: [memory_limiter, transform/allowlist, resource, tail_sampling, batch]
       exporters: [otlphttp/traces]
     metrics:
       receivers: [otlp]

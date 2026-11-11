@@ -1,7 +1,7 @@
 # Deployment — demo only
 
 🔒 **This configuration is for staging or synthetic workloads only.** It has no
-access tiers and no sampling policy. Per
+access tiers, and its sampling policy is not sized from real traffic. Per
 [ADR-0022](../docs/adr/0022-demo-first-resequencing.md) those are deferred until
 after the demo, and the boundary that makes deferring them safe is that
 **production KYC traffic does not pass through this stack.**
@@ -86,7 +86,20 @@ are the four that matter.
 🔒 **`send_failed` is not the failure signal it reads as.** It increments when an
 attempt *resolves*, and with `retry_on_failure` enabled a failing export never
 resolves — during a store outage the sent and failed series are both absent. Use
-the queue rising while `sent` is flat, and the gap between `accepted` and `sent`.
+the queue rising while `sent` is flat. The gap between `accepted` and `sent`
+spans is not loss on its own: traces the sampler dropped are in it by design
+([ADR-0039](../docs/adr/0039-tail-sampling-at-the-collector.md)).
+
+## Sampling
+
+The collector keeps every trace with an error, slower than 2 s, or carrying
+`screening.abandoned`, and 10% of the rest, deciding 30 s after a trace's first
+span (ADR-0039). So a healthy request usually has **no trace** locally. To keep
+them all while working:
+
+```sh
+TRACES_BASE_SAMPLE_PERCENT=100 docker compose -f deploy/docker-compose.yaml up -d
+```
 
 `up` is the one that says a scrape target died: 1 reachable, 0 not, per job, and
 it survives both scrape jobs' metric filters.
@@ -104,7 +117,7 @@ builder.AddRaksawiObservability(o =>
     o.ServiceName = "screening-api";     // bare, kebab-case (ADR-0006)
     o.ServiceNamespace = "kyc";
     o.OtlpEndpoint = new Uri("http://localhost:4318");
-    o.SamplingRatio = 1.0;               // required outside development (ADR-0010)
+    o.SamplingRatio = 1.0;               // required outside development; the collector samples (ADR-0010, 0039)
     o.CouchDbHosts.Add("couch.internal");
 });
 ```
@@ -122,5 +135,6 @@ apply and document identifiers reach the store intact.
       rather than generated, and held against `AllowlistRules.cs` by
       `contract.sh` (2026-09-08)
 - [ ] Access tiers enforced ([ADR-0020](../docs/adr/0020-telemetry-access-tiers.md))
-- [ ] Sampling policy set from measured volume
+- [x] Tail sampling policy at the collector (ADR-0039, 2026-11-10)
+- [ ] Its wait, trace limit and base rate set from measured volume
 - [ ] Queue sized from a measured restore window, not the placeholder here

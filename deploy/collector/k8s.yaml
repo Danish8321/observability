@@ -34,7 +34,7 @@ processors:
 service:
   pipelines:
     traces:
-      processors: [memory_limiter, k8sattributes, transform/allowlist, resource, batch]
+      processors: [memory_limiter, k8sattributes, transform/allowlist, resource, tail_sampling, batch]
     metrics:
       processors: [memory_limiter, k8sattributes, transform/allowlist, resource, batch]
     logs:

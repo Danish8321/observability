@@ -216,8 +216,12 @@ curl http://localhost:5206/applications/app-fail-1004
 # status: received — never screened
 ```
 
-The trace shows two retry events, then an error status. The 202 is still
-sitting in the caller's log.
+The trace shows two retry events, then an error status and
+`screening.abandoned`. It reaches Tempo about 30 s later: the collector holds a
+trace that long before deciding to keep it, and it keeps every failed one but
+only one healthy trace in ten (`TRACES_BASE_SAMPLE_PERCENT=100` keeps them all;
+[ADR-0039](../docs/adr/0039-tail-sampling-at-the-collector.md)). The 202 is
+still sitting in the caller's log.
 
 ## Verify the wiring before trusting anything
 
@@ -244,6 +248,7 @@ In Grafana, Explore:
   export, and `transform/allowlist` drops them again at the collector. Turning
   the analyzer on here found eight keys this sample had been emitting and
   silently losing ([ADR-0025](../docs/adr/0025-domain-attributes-are-declared-not-a-family.md))
-- **Sampling 1.0**, credentials in the compose file — demo settings
+- **Sampling numbers are placeholders** (ADR-0039); credentials in the compose
+  file — demo settings
 - **The fault injection block is demo scaffolding.** Delete it before this
   shape goes anywhere real

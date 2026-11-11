@@ -2,7 +2,9 @@
 # Proves the demo end to end in the local stack (plan D4): an application whose
 # screening fails is abandoned, its trace opens in Tempo through Grafana, the
 # runbook's own queries find it, and the "Work abandoned" email reaches Mailpit
-# linking that runbook. Each later D4 section adds its checks here.
+# linking that runbook; and the collector's tail sampling keeps every abandoned
+# trace while dropping most healthy ones. Each later D4 section adds its checks
+# here.
 #
 # The trace ID is chosen here and sent as a W3C traceparent. The services
 # sample parent-based, so the whole flow, NATS hop included, joins that trace
@@ -26,7 +28,8 @@ RUNBOOK=docs/runbooks/work-abandoned.md
 WAIT_SECONDS=900
 
 # Starts nonzero: Tempo's search results drop a trace ID's leading zeros.
-TRACE_ID="e2e0$(od -An -N14 -tx1 /dev/urandom | tr -d ' \n')"
+new_trace_id() { echo "e2e0$(od -An -N14 -tx1 /dev/urandom | tr -d ' \n')"; }
+TRACE_ID="$(new_trace_id)"
 SPAN_ID="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 # "fail" in the ID is the demo fault (ScreeningService): the provider throws on
 # every attempt, so the worker abandons the application.
@@ -146,11 +149,16 @@ if ! eventually 60 '"status":"ok"' curl -sf "$API/health" \
     exit 1
 fi
 
+# submit APP_ID TRACE_ID — prints the HTTP status.
+submit() {
+    curl -s -o /dev/null -w '%{http_code}' -X POST "$API/applications" \
+        -H 'Content-Type: application/json' \
+        -H "traceparent: 00-$2-$SPAN_ID-01" \
+        -d "{\"applicationId\":\"$1\",\"applicant\":\"Demo Applicant\"}" || :
+}
+
 echo "== submitting $APP_ID in trace $TRACE_ID =="
-code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/applications" \
-    -H 'Content-Type: application/json' \
-    -H "traceparent: 00-$TRACE_ID-$SPAN_ID-01" \
-    -d "{\"applicationId\":\"$APP_ID\",\"applicant\":\"Demo Applicant\"}" || :)"
+code="$(submit "$APP_ID" "$TRACE_ID")"
 if [ "$code" = "202" ]; then
     pass "submitted: 202"
 else
@@ -160,7 +168,7 @@ else
 fi
 
 echo "== the trace, in Tempo through Grafana =="
-if eventually 120 'screen application' trace "$TRACE_ID"; then
+if eventually 180 'screen application' trace "$TRACE_ID"; then
     for service in screening-api screening-worker; do
         case "$body" in
             *"\"$service\""*) pass "trace has $service spans" ;;
@@ -175,6 +183,57 @@ if eventually 120 "$TRACE_ID" search "$(runbook_query traceql)"; then
     pass "the runbook's TraceQL finds the trace"
 else
     fail "the runbook's TraceQL did not find $TRACE_ID. Last response: $body"
+fi
+
+echo "== tail sampling (ADR-0039) =="
+# 20 healthy then 10 failing, each its own trace. The worker takes messages in
+# order, so once the last failing trace is stored every healthy one before it
+# has been decided.
+healthy=""; failing=""
+n=0
+while [ "$n" -lt 20 ]; do
+    n=$((n + 1)); id="$(new_trace_id)"; healthy="$healthy $id"
+    submit "app-ok-$n-$(date +%s)" "$id" >/dev/null
+done
+n=0
+while [ "$n" -lt 10 ]; do
+    n=$((n + 1)); id="$(new_trace_id)"; failing="$failing $id"
+    submit "app-fail-$n-$(date +%s)" "$id" >/dev/null
+done
+
+lost=0
+for id in $failing; do
+    eventually 180 'screen application' trace "$id" || lost=$((lost + 1))
+done
+if [ "$lost" -eq 0 ]; then
+    pass "all 10 abandoned traces are stored"
+else
+    fail "$lost of 10 abandoned traces were not stored"
+fi
+
+kept=0
+for id in $healthy; do
+    case "$(trace "$id" 2>/dev/null || :)" in *'screen application'*) kept=$((kept + 1)) ;; esac
+done
+if [ "$kept" -lt 20 ]; then
+    pass "healthy traces are sampled: $kept of 20 stored"
+else
+    fail "all 20 healthy traces were stored: nothing is being sampled out"
+    echo "          decisions by policy: $(mimir 'sum by (policy, sampled) ({__name__=~"otelcol_processor_tail_sampling_count_traces_sampled.*"})' || :)" >&2
+fi
+
+# The policy reads this key, so it has to survive the allowlist before it.
+case "$(trace "$TRACE_ID" 2>/dev/null || :)" in
+    *'screening.abandoned'*) pass "the stored trace carries screening.abandoned" ;;
+    *) fail "the stored trace has no screening.abandoned" ;;
+esac
+
+sampled='sum({__name__=~"otelcol_processor_tail_sampling_count_traces_sampled.*", policy="abandoned", sampled="true"}) > 0'
+if eventually 180 '"value"' mimir "$sampled"; then
+    pass "the collector reports the abandoned policy keeping traces"
+else
+    fail "no abandoned-policy decisions in Mimir: $body"
+    echo "          tail sampling series in Mimir: $(mimir 'group by (__name__, policy, sampled) ({__name__=~"otelcol_processor_tail_sampling.*"})' || :)" >&2
 fi
 
 echo "== the alert =="

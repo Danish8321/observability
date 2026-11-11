@@ -39,6 +39,38 @@ public sealed class CollectorAllowlistContractTests
         Assert.Contains(Escaped(key), LogKeep());
     }
 
+    [Theory]
+    [MemberData(nameof(DeclaredKeys))]
+    public void Every_declared_key_appears_in_both_collector_keeps(string key)
+    {
+        // 🔒 A key declared in a policy pack passes the analyzer and the
+        // in-process allowlist. Eight of them were then dropped here, because
+        // the collector's copy listed only the Class 2 ones and nothing
+        // compared the two: the trace of an abandoned application reached the
+        // store without screening.abandoned.
+        // Between two alternation delimiters, so application.id cannot stand
+        // in for application.identity.
+        var exact = "[(|]" + System.Text.RegularExpressions.Regex.Escape(Escaped(key)) + "[|)]";
+
+        Assert.Matches(exact, KeepExpression());
+        Assert.Matches(exact, LogKeep());
+    }
+
+    [Fact]
+    public void Traces_are_sampled_after_the_allowlist_and_before_the_batch()
+    {
+        // After the allowlist, so a sampling policy can only read a governed
+        // key (ADR-0039). The overlay test holds k8s.yaml to the same order.
+        var processors = Processors(Pipelines().Single(pipeline => pipeline.Name == "traces").Body);
+
+        Assert.True(processors.IndexOf("transform/allowlist") < processors.IndexOf("tail_sampling"));
+        Assert.Equal("batch", processors[^1]);
+
+        Assert.All(
+            Pipelines().Where(pipeline => pipeline.Name != "traces"),
+            pipeline => Assert.DoesNotContain("tail_sampling", pipeline.Body));
+    }
+
     [Fact]
     public void Messaging_is_not_admitted_as_a_family_on_either_side()
     {
@@ -309,6 +341,16 @@ public sealed class CollectorAllowlistContractTests
     public static TheoryData<string> AllowedFamilies() => Load(AllowlistRules.AllowedFamilies);
 
     public static TheoryData<string> AllowedMessagingKeys() => Load(AllowlistRules.AllowedMessagingKeys);
+
+    /// <summary>
+    /// Every key the mechanism and the KYC policy pack declare, read off the
+    /// assemblies the way the runtime allowlist reads them.
+    /// </summary>
+    public static TheoryData<string> DeclaredKeys() => Load([
+        .. new[] { typeof(AllowlistRules).Assembly, typeof(Kyc.KycTelemetry).Assembly }
+            .SelectMany(assembly => assembly.GetCustomAttributes(typeof(AllowedAttributeKeyAttribute), inherit: false))
+            .Cast<AllowedAttributeKeyAttribute>()
+            .Select(declaration => declaration.Key)]);
 
     public static TheoryData<string> CarveOuts() =>
         Load([.. AllowlistRules.DeniedPrefixes, .. AllowlistRules.DeniedKeys]);

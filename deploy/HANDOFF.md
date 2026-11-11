@@ -31,6 +31,7 @@ and its open questions), and ADR-0037 is written once that choice is made.
 | `LOKI_OTLP_ENDPOINT` | collector | `http://loki:3100/otlp` | Loki's service URL + `/otlp` |
 | `MIMIR_OTLP_ENDPOINT` | collector | `http://mimir:9009/otlp` | Mimir's service URL + `/otlp` |
 | `DEPLOYMENT_ENVIRONMENT_NAME` | collector | `local` | `production` (one gateway per environment, R5). **Must be set**: unset, it defaults to `staging`, and the platform alerts ignore staging, so a production gateway left unset is unwatched |
+| `TRACES_BASE_SAMPLE_PERCENT` | collector | `10` (default) | your call: the share of healthy traces stored. Errors, traces over 2 s and abandoned work are always stored (ADR-0039) |
 | `LOKI_S3_BUCKET` / `MIMIR_S3_BUCKET` | Loki / Mimir | `loki` / `mimir` | one bucket per store |
 | `S3_ENDPOINT` | both | `seaweedfs-s3:8333` | `s3.<region>.amazonaws.com` |
 | `S3_REGION` | both | `us-east-1` | the bucket region |
@@ -59,8 +60,13 @@ read/write/list on their own bucket only.
 
 ## Recommendations, Infra decides
 
-- **R2**: one gateway replica for now. It is a single point of failure, covered
+- **R2**: one gateway replica. It is a single point of failure, covered
   by the persistent queue now and by the dead-man's-switch alerts in D3.
+  **Since tail sampling this is a requirement, not a preference**: the sampler
+  must see every span of a trace, so two replicas behind a plain load balancer
+  would each decide on half a trace. Scaling out needs a `loadbalancing`
+  exporter tier routing by trace ID in front (ADR-0039); ask before adding a
+  replica.
 - **R5**: staging telemetry goes to the production stack tagged
   `deployment.environment.name=staging`. The platform alerts ignore it.
 
@@ -75,6 +81,11 @@ read/write/list on their own bucket only.
   exporter still alerts on its own.
 - **Queue size** is a placeholder (10,000 batches), not sized from a measured
   outage window.
+- **Tail sampling is not sized either.** The collector holds each trace for
+  30 s and at most 50,000 traces in memory (`tail_sampling` in
+  `collector/config.yaml`). The `otelcol_processor_tail_sampling_*` series in
+  Mimir say whether that fits real traffic; the numbers change by our commit,
+  not by editing the file in place.
 - **Exemplars** are off in Mimir by default; D4 turns them on.
 - The rest of the service alerts (D4), dashboards and SLOs (D10). The
   platform alerts (D3) and "Work abandoned" are in this handoff.

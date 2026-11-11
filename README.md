@@ -41,7 +41,7 @@ builder.AddRaksawiObservability(o =>
     o.ServiceName = "screening-api";      // bare, kebab-case (ADR-0006)
     o.ServiceNamespace = "kyc";
     o.OtlpEndpoint = new Uri(builder.Configuration["Otlp:Endpoint"]!);
-    o.SamplingRatio = 0.1;                // required outside Development (ADR-0010)
+    o.SamplingRatio = 1.0;                // required outside Development; the collector samples (ADR-0010, 0039)
     o.ActivitySources.Add(MyTelemetry.ActivitySourceName);
     o.Meters.Add(MyTelemetry.MeterName);
     o.CouchDbHosts.Add(couchDbHost);      // only if this service talks to CouchDB
