@@ -103,6 +103,14 @@ failure is the *absence* of an outcome rather than one of them. Merged, they
 hide the exact case this platform exists to surface: **the API returned 202 and
 the work silently never completed.**
 
+### A histogram in seconds declares its buckets
+
+`screening.duration` passes `HistogramBucketBoundaries` advice, the semantic
+conventions' boundaries for seconds (5 ms to 10 s). Without it the SDK's
+defaults apply, made for milliseconds (0, 5, 10, 25 … 10000): every screening
+lands in the first bucket, a healthy p95 reads 4.75 s, and the "Screening
+slow" alert cannot tell healthy from slow.
+
 ### Not-found is not an error
 
 ```csharp

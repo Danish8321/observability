@@ -572,7 +572,7 @@ Independent of the package refactor: it lives in the collector and Grafana.
   | Work abandoned | `screening.applications.abandoned` increase > 0 | 5 min | every abandonment is a customer whose application silently stopped; there is no acceptable rate |
   | Error rate | 5xx ÷ requests > 5% per `service.name` + `http.route`, with ≥ 20 requests in the window | 10 min | the volume floor stops a single failed request on a quiet route from emailing anyone |
   | Latency | p95 `http.server.request.duration` > 2 s per route, ≥ 20 requests | 10 min | `POST /applications` does two CouchDB calls and one NATS publish; 2 s is several times a healthy request |
-  | Screening slow | p95 `screening.duration` > 10 s | 15 min | covers the "slow" demo fault (3 s per lookup) only when it is widespread |
+  | Screening slow | p95 `screening.duration` > 2.5 s, ≥ 20 screenings | 10 min | amended in D4 (2026-11-16) from > 10 s for 15 min, which the "slow" demo fault (3 s per lookup) could never reach; a healthy screening takes about 10 ms |
   | Dead man's switch: services | a service in the register stops reporting `target_info` | 5 min | four separate alerts, one per state of panel 4.11, so the email says *which* part is dead |
   | Dead man's switch: collector receiving | `otelcol_receiver_accepted_spans` rate = 0 | 5 min | |
   | Dead man's switch: collector exporting | sent rate = 0 or failed rate > 0 | 5 min | also closes finding 07 (export failure rate reads zero during an outage) |

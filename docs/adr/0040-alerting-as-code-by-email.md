@@ -86,4 +86,24 @@ the register and so knows what *should* be sending.
   weeks of production traffic; an alert that fires without action is changed
   or removed, not muted.
 - **Platform labels carry no Class 2 data** — they are `component`, `exporter`,
-  `job`, `deployment_environment_name` and `heartbeat`. Service alerts (D4) are where that assertion starts to bite.
+  `job`, `deployment_environment_name` and `heartbeat`. The service alerts (D4)
+  add `reason` (an exception type name or `not_found`) and `http_route` (the
+  route template, `/applications/{id}`, never the path), both bounded.
+
+## Service alerts (D4)
+
+Four rules in the `services` group, each with its runbook:
+
+| Alert | Condition | For | Fired locally by |
+|---|---|---|---|
+| Work abandoned | any increase of `screening.applications.abandoned` | 5m | the `fail` demo fault |
+| Error rate | 5xx above 5% of a route's requests, ≥ 20 requests in 10m | 10m | CouchDB stopped under load |
+| Latency | p95 of a route's `http.server.request.duration` above 2 s, ≥ 20 requests in 10m | 10m | CouchDB stopped under load (each call waits about 4 s to fail) |
+| Screening slow | p95 of `screening.duration` above 2.5 s, ≥ 20 screenings in 10m | 10m | the `slow` demo fault, sustained |
+
+**Deviation from the plan's M9 table**: "Screening slow" was p95 above 10 s for
+15 minutes. The `slow` fault adds 3 s, so that rule could never be seen to
+fire, and a healthy screening takes about 10 ms; the plan is amended to match.
+Error rate and Latency have no demo fault of their own: `POST /applications`
+answers 202 before the worker runs, so no screening fault reaches it.
+`e2e-demo.sh` checks all four emails.

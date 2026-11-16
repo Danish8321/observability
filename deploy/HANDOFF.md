@@ -6,8 +6,9 @@ unchanged by the local stack (`docker-compose.yaml`) and checked by
 `.claude/scripts/e2e-stack.sh`. Everything that differs between the local stack
 and production is an environment variable, listed below.
 
-Status: **D2, partial; D3; D4 in progress.** Logs, metrics, the platform alerts
-and the first service alert are ready. The collector sends traces to
+Status: **D2, partial; D3; D4.** Logs, metrics, the platform alerts,
+the four service alerts (Work abandoned, Error rate, Latency, Screening slow), Grafana's links
+between the stores, and exemplars are ready. The collector sends traces to
 `TRACES_OTLP_ENDPOINT`; the store behind it is Infra's choice (ClickHouse or
 Tempo; see [the stack recommendation](../docs/plans/telemetry-stack-recommendation.html)
 and its open questions), and ADR-0037 is written once that choice is made.
@@ -19,8 +20,8 @@ and its open questions), and ADR-0037 is written once that choice is made.
 | `collector/config.yaml` | OTel Collector contrib `0.140.1`, the gateway | Holds the allowlist, one of our three enforcement points (ADR-0009). **Run it unmodified**; change only environment variables. |
 | `collector/k8s.yaml` | merged on top: `--config=config.yaml --config=k8s.yaml` | Adds pod metadata (namespace, pod, node) through `k8sattributes`. |
 | `loki/loki.yaml` | Loki `3.5.7`, monolithic, `-config.expand-env=true` | |
-| `mimir/mimir.yaml` | Mimir `2.17.0`, monolithic, `-config.expand-env=true` | Promotes `deployment.environment.name` onto every series (`promote_otel_resource_attributes`, experimental in 2.17). The platform alerts depend on it to tell staging from production. |
-| `grafana/provisioning/` | mounted at `/etc/grafana/provisioning` | Data sources with fixed uids `mimir`, `loki` and `tempo` (the last holds only if the trace store is Tempo); alert rules, the email contact point and the notification policy (`alerting/`, ADR-0040) reference them. Checked by `.claude/scripts/e2e-alerting.sh`. |
+| `mimir/mimir.yaml` | Mimir `2.17.0`, monolithic, `-config.expand-env=true` | Promotes `deployment.environment.name` onto every series (`promote_otel_resource_attributes`, experimental in 2.17). The platform alerts depend on it to tell staging from production. Stores exemplars (`max_global_exemplars_per_user`); the default, 0, stores none. |
+| `grafana/provisioning/` | mounted at `/etc/grafana/provisioning` | Data sources with fixed uids `mimir`, `loki` and `tempo` (the last holds only if the trace store is Tempo), linked to each other: a span opens its logs, a log line and a Mimir exemplar open their trace. The links name `tempo`, so they hold only if the trace store is Tempo; alert rules, the email contact point and the notification policy (`alerting/`, ADR-0040) reference them. Checked by `.claude/scripts/e2e-alerting.sh`. |
 | `seaweedfs/` | local stack only | Stands in for S3. Not for production. |
 
 ## Environment
@@ -40,6 +41,7 @@ and its open questions), and ADR-0037 is written once that choice is made.
 | `S3_BUCKET_LOOKUP_TYPE` | Mimir | `path` | `auto` (default) |
 | `LOKI_RETENTION` / `MIMIR_RETENTION` | Loki / Mimir | `720h` (default) | your call (open question 6) |
 | `MIMIR_OUT_OF_ORDER_WINDOW` | Mimir | `1h` (default) | at least the longest store outage the collector queue should cover |
+| `MIMIR_MAX_EXEMPLARS` | Mimir | `100000` (default) | a cap on exemplars held in memory, not a sizing; raise it if the `cortex_ingester_tsdb_exemplar_*` series show exemplars being evicted |
 | `MIMIR_URL` / `LOKI_URL` / `TEMPO_URL` | Grafana | `http://mimir:9009/prometheus` / `http://loki:3100` / `http://tempo:3200` | service URLs (`TEMPO_URL` only if the trace store is Tempo) |
 | `GF_SMTP_ENABLED` / `GF_SMTP_HOST` / `GF_SMTP_FROM_ADDRESS` | Grafana | `true` / `mailpit:1025` / `alerts@raksawi.local` | SES SMTP endpoint, port 587, and a verified sender; add `GF_SMTP_USER` / `GF_SMTP_PASSWORD` from a secret |
 | `ALERT_EMAIL_TO` | Grafana (contact point) | `oncall@raksawi.local` | the on-call list, one per environment |
@@ -56,7 +58,12 @@ read/write/list on their own bucket only.
   namespaces and nodes (for `k8sattributes`), and a persistent volume at
   `/var/lib/otelcol/storage` writable by uid 10001: the export queue survives
   restarts there.
-- **Each service pod** sets `OTEL_SERVICE_INSTANCE_ID` from its pod name (R3).
+- **Each service pod** sets `OTEL_SERVICE_INSTANCE_ID` from its pod name (R3),
+  and `OTEL_METRICS_EXEMPLAR_FILTER=trace_based`: without it the SDK attaches
+  no exemplars, and a latency panel has no trace to open. The collector's
+  allowlist filters datapoint attributes, not the attributes an exemplar
+  carries; today those are only `trace_id` and `span_id`, which
+  `e2e-demo.sh` asserts. Governing them is plan D8b and D9b.
 
 ## Recommendations, Infra decides
 
@@ -86,9 +93,7 @@ read/write/list on their own bucket only.
   `collector/config.yaml`). The `otelcol_processor_tail_sampling_*` series in
   Mimir say whether that fits real traffic; the numbers change by our commit,
   not by editing the file in place.
-- **Exemplars** are off in Mimir by default; D4 turns them on.
-- The rest of the service alerts (D4), dashboards and SLOs (D10). The
-  platform alerts (D3) and "Work abandoned" are in this handoff.
+- Dashboards and SLOs (D10).
 - **A watcher for the heartbeat.** "Alerting heartbeat" emails daily; Grafana
   being down shows only as that email not arriving. An external
   dead-man's-switch service that emails on a missed heartbeat closes the gap;

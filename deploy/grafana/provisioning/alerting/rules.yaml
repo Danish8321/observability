@@ -269,3 +269,124 @@ groups:
             Screening failed permanently. Each submitter was told 202, the
             application stays "received", and nothing retries it.
           runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/work-abandoned.md
+
+      # Both HTTP rules need 20 requests on the route in the window, so one
+      # failed or slow request on a quiet route emails no one. A status code
+      # seen for the first time arrives as a new series, and rate() counts
+      # nothing for a series' first sample; under the sustained traffic these
+      # rules are for, the next sample counts.
+      - uid: error-rate
+        title: Error rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: |
+                sum by (deployment_environment_name, job, http_route) (
+                  increase(http_server_request_duration_count{deployment_environment_name!="staging", http_response_status_code=~"5.."}[10m]))
+                /
+                sum by (deployment_environment_name, job, http_route) (
+                  increase(http_server_request_duration_count{deployment_environment_name!="staging"}[10m]))
+                and
+                sum by (deployment_environment_name, job, http_route) (
+                  increase(http_server_request_duration_count{deployment_environment_name!="staging"}[10m])) >= 20
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: service
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.deployment_environment_name }}): more than 5% of requests to {{ $labels.http_route }} fail with a 5xx."
+          description: >-
+            Callers of this route are getting server errors, and have been for
+            ten minutes.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/error-rate.md
+
+      - uid: latency
+        title: Latency
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: |
+                histogram_quantile(0.95, sum by (deployment_environment_name, job, http_route, le) (
+                  rate(http_server_request_duration_bucket{deployment_environment_name!="staging"}[10m])))
+                and
+                sum by (deployment_environment_name, job, http_route) (
+                  increase(http_server_request_duration_count{deployment_environment_name!="staging"}[10m])) >= 20
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [2] }
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: service
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.deployment_environment_name }}): 95th percentile of {{ $labels.http_route }} is above 2 s."
+          description: >-
+            One request in twenty to this route takes longer than two seconds,
+            and has for ten minutes.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/latency.md
+
+      # 2.5 s, not the plan's first 10 s: the demo's slow fault adds 3 s, so
+      # 10 s could never be seen to fire. A healthy screening takes about 10 ms.
+      # The same 20-measurement floor as the HTTP rules: one slow screening on
+      # a quiet worker is not "screening is slow".
+      - uid: screening-slow
+        title: Screening slow
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: |
+                histogram_quantile(0.95, sum by (deployment_environment_name, job, le) (
+                  rate(screening_duration_bucket{deployment_environment_name!="staging"}[10m])))
+                and
+                sum by (deployment_environment_name, job) (
+                  increase(screening_duration_count{deployment_environment_name!="staging"}[10m])) >= 20
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [2.5] }
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: service
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.deployment_environment_name }}): 95th percentile of screening is above 2.5 s."
+          description: >-
+            One application in twenty takes longer than two and a half seconds
+            to screen, and has for ten minutes. Submitters are not told: the
+            API answered 202 long before.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/screening-slow.md

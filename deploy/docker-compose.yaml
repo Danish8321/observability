@@ -233,6 +233,9 @@ services:
       Otlp__Endpoint: http://collector:4318
       CouchDb__Url: http://admin:password@couchdb:5984
       Nats__Url: nats://nats:4222
+      # Each histogram bucket keeps the trace of one measurement taken inside
+      # a sampled span, the exemplar a panel opens. The SDK default is off.
+      OTEL_METRICS_EXEMPLAR_FILTER: trace_based
     depends_on: &service-deps
       couchdb-init:
         condition: service_completed_successfully

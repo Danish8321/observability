@@ -3,15 +3,17 @@
 # screening fails is abandoned, its trace opens in Tempo through Grafana, the
 # runbook's own queries find it, and the "Work abandoned" email reaches Mailpit
 # linking that runbook; and the collector's tail sampling keeps every abandoned
-# trace while dropping most healthy ones. Each later D4 section adds its checks
-# here.
+# trace while dropping most healthy ones. Grafana's links between the three
+# stores lead where they say (trace to logs, log to trace, exemplar to trace),
+# sustained slow screening emails "Screening slow", and a CouchDB outage under
+# load emails "Error rate" and "Latency".
 #
 # The trace ID is chosen here and sent as a W3C traceparent. The services
 # sample parent-based, so the whole flow, NATS hop included, joins that trace
 # and the checks know what to look for.
 #
-# The alert waits out its 5m "for" before it emails, so this takes about ten
-# minutes. Runs as its own compose project, removed on exit, and builds the
+# Each later alert waits out a 10m "for" on a 10m window, and the slow and
+# CouchDB faults run one after the other, so this takes about 35 minutes. Runs as its own compose project, removed on exit, and builds the
 # services from the current source; it needs the local stack's ports free.
 set -eu
 
@@ -24,8 +26,10 @@ GRAFANA=http://localhost:3000
 MAILPIT=http://localhost:8025/api/v1
 MIMIR_QUERY=http://localhost:9009/prometheus/api/v1/query
 RUNBOOK=docs/runbooks/work-abandoned.md
-# 1m metric export + 1m evaluation + 5m "for" + 30s group wait, with room.
-WAIT_SECONDS=900
+DATASOURCES=deploy/grafana/provisioning/datasources/datasources.yaml
+# 1m metric export + 2m before a new series has a rate + 10m "for" + 1m
+# evaluation + 30s group wait, with room.
+WAIT_SECONDS=1200
 
 # Starts nonzero: Tempo's search results drop a trace ID's leading zeros.
 new_trace_id() { echo "e2e0$(od -An -N14 -tx1 /dev/urandom | tr -d ' \n')"; }
@@ -43,7 +47,9 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
 fi
 
 log="$(mktemp)"
+load=""
 cleanup() {
+    [ -n "$load" ] && kill "$load" 2>/dev/null || true
     rm -f "$log"
     if [ "${E2E_KEEP:-0}" = "1" ]; then
         echo "E2E_KEEP=1: project $PROJECT left running." >&2
@@ -185,6 +191,59 @@ else
     fail "the runbook's TraceQL did not find $TRACE_ID. Last response: $body"
 fi
 
+echo "== Grafana links between the stores =="
+# Trace to logs: the query Grafana runs from a span (tracesToLogsV2), taken
+# from the data source file and run through Grafana for this trace.
+logs_query="$(sed -n "s/^ *query: '\(.*\)'$/\1/p" "$DATASOURCES" | sed "s/\$\$[{]__trace.traceId[}]/$TRACE_ID/")"
+logs() {
+    now="$(date +%s)"
+    curl -s -G -u admin:admin "$GRAFANA/api/datasources/proxy/uid/loki/loki/api/v1/query_range" \
+        --data-urlencode "query=$logs_query" --data-urlencode "start=$((now - 3600))" \
+        --data-urlencode "end=$now" --data-urlencode limit=100
+}
+if eventually 120 '"service_name":"screening-worker"' logs; then
+    case "$body" in
+        *'"service_name":"screening-api"'*) pass "trace to logs: both services' logs for the trace" ;;
+        *) fail "trace to logs found no screening-api logs for $TRACE_ID" ;;
+    esac
+    # Log to trace: the derived field matches the trace_id label (matcherType
+    # label), so the label has to be there, holding the ID the link opens.
+    case "$body" in
+        *"\"trace_id\":\"$TRACE_ID\""*) pass "log to trace: log records carry trace_id" ;;
+        *) fail "log records for $TRACE_ID have no trace_id label" ;;
+    esac
+else
+    fail "trace to logs found no screening-worker logs for $TRACE_ID. Query: $logs_query. Last response: $body"
+fi
+
+# Exemplar to trace. Checked before the traffic below: each histogram bucket
+# keeps one exemplar per export, so a burst would overwrite this trace's.
+# Selected by job, not http_route: Git Bash rewrites an argument holding
+# ="/applications" into a Windows path.
+exemplars() {
+    now="$(date +%s)"
+    curl -sf -G "http://localhost:9009/prometheus/api/v1/query_exemplars" \
+        --data-urlencode 'query=http_server_request_duration_bucket{job="kyc/screening-api"}' \
+        --data-urlencode "start=$((now - 3600))" --data-urlencode "end=$now"
+}
+if eventually 150 "\"trace_id\":\"$TRACE_ID\"" exemplars; then
+    pass "the request's latency exemplar carries its trace ID"
+    # The datapoint allowlist does not reach exemplar attributes; anything
+    # beyond the two IDs is ungoverned (D8b and D9b own exemplar safety).
+    extra="$(echo "$body" | grep -o '"labels":{[^}]*}' | grep -v '^"labels":{"trace_id":"[0-9a-f]*","span_id":"[0-9a-f]*"}$' || :)"
+    if [ -z "$extra" ]; then
+        pass "exemplars carry trace_id and span_id only"
+    else
+        fail "exemplars carry more than the trace and span IDs: $extra"
+    fi
+    case "$(trace "$TRACE_ID" 2>/dev/null || :)" in
+        *'screen application'*) pass "the exemplar's trace opens through Grafana" ;;
+        *) fail "the exemplar's trace $TRACE_ID does not open" ;;
+    esac
+else
+    fail "no exemplar with trace $TRACE_ID. Last response: $body"
+fi
+
 echo "== tail sampling (ADR-0039) =="
 # 20 healthy then 10 failing, each its own trace. The worker takes messages in
 # order, so once the last failing trace is stored every healthy one before it
@@ -241,11 +300,48 @@ echo "== the alert =="
 # the email is skipped rather than spent.
 if eventually 180 '"reason":"ScreeningProviderException"' mimir "$(runbook_query promql)"; then
     pass "the runbook's first query shows the abandonment"
-    await "Work abandoned" work-abandoned.md
+    abandoned=1
 else
     fail "the runbook's first query shows no ScreeningProviderException: $body"
     echo "          screening series in Mimir: $(mimir 'group by (__name__) ({__name__=~"screening.*"})' || :)" >&2
 fi
+
+# Slow screening, sustained: one "slow" application (3 s at the provider)
+# every 2 s, faster than the worker clears them. Started before the wait for
+# "Work abandoned" so the two waits overlap. Needs CouchDB up, so it runs
+# before the outage below.
+(
+    n=0
+    while :; do
+        n=$((n + 1))
+        curl -s -o /dev/null -m 30 -X POST "$API/applications" -H 'Content-Type: application/json' \
+            -d "{\"applicationId\":\"app-slow-load-$n\",\"applicant\":\"Demo Applicant\"}" || :
+        sleep 2
+    done
+) &
+load=$!
+
+if [ "${abandoned:-0}" = "1" ]; then
+    await "Work abandoned" work-abandoned.md
+fi
+await "Screening slow" screening-slow.md
+kill "$load" 2>/dev/null || true
+
+# CouchDB down: every POST /applications fails with a 500 once the client
+# gives up connecting (about 4 s), so one fault fires both HTTP alerts.
+$COMPOSE stop couchdb >/dev/null 2>&1
+(
+    n=0
+    while :; do
+        n=$((n + 1))
+        curl -s -o /dev/null -m 30 -X POST "$API/applications" -H 'Content-Type: application/json' \
+            -d "{\"applicationId\":\"app-down-$n\",\"applicant\":\"Demo Applicant\"}" || :
+    done
+) &
+load=$!
+
+await "Error rate" error-rate.md
+await "Latency" latency.md
 
 if [ "$failed" -ne 0 ]; then
     echo >&2

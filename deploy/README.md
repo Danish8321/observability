@@ -37,7 +37,7 @@ docker network create observability   # once
 docker compose -f deploy/docker-compose.yaml up -d --build --wait
 .claude/scripts/e2e-stack.sh          # stores answer and Grafana sees them
 .claude/scripts/e2e-alerting.sh       # each platform alert emails (~15 min)
-.claude/scripts/e2e-demo.sh           # an abandoned application: its trace and its email (~10 min)
+.claude/scripts/e2e-demo.sh           # an abandoned application, the links between stores, the service alerts (~35 min)
 ```
 
 Grafana is on `localhost:3000` (admin/admin locally), screening-api on

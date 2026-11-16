@@ -14,12 +14,30 @@ datasources:
     url: ${MIMIR_URL}
     isDefault: true
     editable: false
+    jsonData:
+      # An exemplar on a panel opens its trace. Mimir stores the trace ID an
+      # OTLP exemplar carries under this name.
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
 
   - name: Loki
     uid: loki
     type: loki
     url: ${LOKI_URL}
     editable: false
+    jsonData:
+      # A log line opens its trace. Loki keeps an OTLP record's trace ID as
+      # structured metadata, not in the line, so the match is on the label.
+      # $$ is a literal $: Grafana expands ${...} in this file from the
+      # environment.
+      derivedFields:
+        - name: trace
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: $${__value.raw}
+          urlDisplayLabel: Open trace
 
   - name: Tempo
     uid: tempo
@@ -27,6 +45,14 @@ datasources:
     url: ${TEMPO_URL}
     editable: false
     jsonData:
+      # A span opens the logs written inside its trace, from an hour before
+      # the span to an hour after. e2e-demo.sh runs this query.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -1h
+        spanEndTimeShift: 1h
+        customQuery: true
+        query: '{service_name=~".+"} | trace_id="$${__trace.traceId}"'
       # Explore then searches through the data source proxy to Tempo's HTTP
       # API, the path e2e-demo.sh checks. Streaming needs gRPC from Tempo
       # (stream_over_http_enabled) and cannot be checked with curl.

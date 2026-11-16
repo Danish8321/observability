@@ -132,6 +132,19 @@ for uid in mimir loki; do
     esac
 done
 
+# The links between the stores (D4). Grafana ignores a misspelt key in
+# jsonData without a word, so each is read back from Grafana, not the file.
+# check UID EXPECT NAME
+link() {
+    case "$(curl -s -u admin:admin "http://localhost:3000/api/datasources/uid/$1" || :)" in
+        *"$2"*) echo "  ok      $3" ;;
+        *) echo "  FAILED  $3: $1 has no $2" >&2; failed=1 ;;
+    esac
+}
+link mimir '"exemplarTraceIdDestinations":[{"datasourceUid":"tempo","name":"trace_id"}]' "Mimir exemplars open Tempo"
+link loki '"datasourceUid":"tempo","matcherRegex":"trace_id","matcherType":"label"' "Loki trace_id opens Tempo"
+link tempo '"tracesToLogsV2":{"customQuery":true,"datasourceUid":"loki"' "Tempo spans open Loki"
+
 if [ "$failed" -ne 0 ]; then
     echo >&2
     echo "e2e-stack.sh: FAILED." >&2

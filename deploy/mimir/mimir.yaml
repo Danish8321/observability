@@ -54,6 +54,9 @@ limits:
   # instance=localhost:8888) and a live one hides a dead one. The platform
   # alerts select on this label (plan R5, ADR-0040).
   promote_otel_resource_attributes: deployment.environment.name
+  # 0, the default, stores no exemplars, and a latency panel then has no
+  # trace to open. A cap on exemplars held in memory, not a sizing.
+  max_global_exemplars_per_user: ${MIMIR_MAX_EXEMPLARS:100000}
 
 ingester:
   ring:
