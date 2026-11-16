@@ -51,13 +51,21 @@ public static class ScreeningTelemetry
     /// </summary>
     /// <remarks>
     /// A histogram rather than a gauge: the question at 3am is "what does the
-    /// slow tail look like", and an average cannot answer it.
+    /// slow tail look like", and an average cannot answer it. The boundaries
+    /// are the semantic conventions' for durations in seconds; the SDK's
+    /// defaults are for milliseconds and would put every screening in one
+    /// bucket.
     /// </remarks>
     public static readonly Histogram<double> Duration =
         Meter.CreateHistogram<double>(
             "screening.duration",
             unit: "s",
-            description: "Screening duration from message receipt to decision.");
+            description: "Screening duration from message receipt to decision.",
+            tags: null,
+            advice: new InstrumentAdvice<double>
+            {
+                HistogramBucketBoundaries = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10],
+            });
 
     /// <summary>
     /// Messages that failed and were not retried further.

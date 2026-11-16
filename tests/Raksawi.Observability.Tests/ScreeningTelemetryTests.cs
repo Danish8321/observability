@@ -65,6 +65,19 @@ public class ScreeningTelemetryTests
     }
 
     [Fact]
+    public void Duration_buckets_resolve_seconds()
+    {
+        // Without advice the SDK's default boundaries (0, 5, 10, 25, ... 10000)
+        // apply, made for milliseconds: every screening lands in the first
+        // bucket and a healthy p95 reads 4.75 s. "Screening slow" fires at 2.5 s.
+        var boundaries = ScreeningTelemetry.Duration.Advice?.HistogramBucketBoundaries;
+
+        Assert.NotNull(boundaries);
+        Assert.Contains(2.5, boundaries);
+        Assert.True(boundaries[0] <= 0.01, "the first bucket must resolve a healthy screening");
+    }
+
+    [Fact]
     public void Activity_source_is_versioned()
     {
         // Exported as otel.scope.version. It is how "this span is missing" is
