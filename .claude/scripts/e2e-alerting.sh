@@ -5,7 +5,10 @@
 #
 # Two phases, because a stopped collector cannot also show a stalled export:
 #   A. Loki export pointed at a host that does not exist, logs sent throughout:
-#      "Export stalled" and the heartbeat arrive; nothing else does.
+#      "Export stalled" and the heartbeat arrive. A subscriber that stops
+#      reading is flooded on a subject of its own until NATS drops it: "Slow
+#      consumer". Then the NATS exporter is stopped: "Broker metrics missing".
+#      Nothing else arrives.
 #   B. collector and Loki both stopped: "Collector not reporting" and
 #      "Store unreachable: Loki" arrive. The two are independent — one is read
 #      from Mimir, the other is Grafana's own failed query.
@@ -123,6 +126,27 @@ else
     fail "$loaded of $expected alert rules provisioned"
 fi
 
+# A raw subscriber whose output goes to a pipe nobody reads, so it stops
+# reading the socket, then 40 MB published to its subject: past the server's
+# 10 s write deadline it is disconnected as a slow consumer. A subject of its
+# own, so no service sees the flood. Named by container, not "nats", because
+# another stack on the shared network would answer to that too.
+NATS_HOST="$PROJECT-nats-1"
+docker run -d --rm --name "$PROJECT-stalled-subscriber" --network observability busybox:1.36 \
+    sh -c "(printf 'CONNECT {\"verbose\":false}\r\nSUB alert-check.flood 1\r\n'; sleep 120) | nc $NATS_HOST 4222 | sleep 120" >/dev/null
+sleep 2
+docker run --rm --network observability busybox:1.36 sh -c "
+    p=\$(head -c 4096 /dev/zero | tr '\0' x)
+    (printf 'CONNECT {\"verbose\":false}\r\n'
+     i=0; while [ \$i -lt 10000 ]; do printf 'PUB alert-check.flood 4096\r\n%s\r\n' \"\$p\"; i=\$((i+1)); done
+     sleep 15) | nc $NATS_HOST 4222 >/dev/null"
+docker rm -f "$PROJECT-stalled-subscriber" >/dev/null 2>&1 || :
+
+await "Slow consumer" slow-consumer.md
+
+# Stopped while the collector still scrapes, so up reads 0 rather than absent.
+$COMPOSE stop nats-exporter >/dev/null 2>&1
+
 # The queue only fills if something is waiting to go out.
 (
     while :; do
@@ -153,6 +177,7 @@ series "sent rate matches (Export stalled)" \
 sleep 120
 absent "Collector not reporting"
 absent "Store unreachable"
+await "Broker metrics missing" broker-metrics-missing.md
 kill "$sender" 2>/dev/null || true
 sender=""
 

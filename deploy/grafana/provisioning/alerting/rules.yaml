@@ -196,6 +196,79 @@ groups:
             Loki returns.
           runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/store-unreachable.md
 
+      # The broker (plan D5, ADR-0030). The count is of connections the server
+      # dropped for not reading, which is data already lost on core NATS, so
+      # one is enough and there is no "for". It is not lag: a NATS.Net
+      # subscriber that falls behind drops messages in the client instead
+      # (DropNewest) and this never moves. "Delivery gap" covers that.
+      - uid: slow-consumer
+        title: Slow consumer
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: |
+                sum by (deployment_environment_name, instance) (
+                  increase(gnatsd_varz_slow_consumers{job="nats", deployment_environment_name!="staging"}[10m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        for: 0s
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: broker
+        annotations:
+          summary: "NATS ({{ $labels.instance }}, {{ $labels.deployment_environment_name }}) disconnected a subscriber that stopped reading."
+          description: >-
+            The server dropped a connection for falling behind, and the
+            messages it held for that subscriber are gone. Core NATS does not
+            redeliver them.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/slow-consumer.md
+
+      # Every broker rule reads the exporter's scrape, so a dead exporter turns
+      # "Slow consumer" into no data, which is OK. up is 0, not absent, while
+      # the collector keeps scraping; a stopped collector is its own email.
+      - uid: broker-metrics-missing
+        title: Broker metrics missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: min by (deployment_environment_name, instance) (up{job="nats", deployment_environment_name!="staging"})
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: broker
+        annotations:
+          summary: "The collector cannot scrape NATS broker metrics from {{ $labels.instance }} ({{ $labels.deployment_environment_name }})."
+          description: >-
+            prometheus-nats-exporter is not answering, so "Slow consumer" cannot
+            fire. The broker itself may be healthy.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/broker-metrics-missing.md
+
       # Always firing, from an expression alone so it depends on no store.
       # Routed to a 24h repeat in notifications.yaml.
       - uid: alerting-heartbeat
@@ -390,3 +463,55 @@ groups:
             to screen, and has for ten minutes. Submitters are not told: the
             API answered 202 long before.
           runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/screening-slow.md
+
+      # Plan D5. Core NATS has no backlog to measure (panel 3.2), so the gap is
+      # read at the ends: applications accepted against applications the
+      # worker finished, either way. Below 90% for ten minutes the worker is
+      # behind, stopped, or dropping (NATS.Net drops newest when its buffer is
+      # full). The "or 0 *" keeps a worker with no series left (stopped) at 0
+      # handled rather than no result. Across jobs: the two counts come from
+      # two services.
+      - uid: delivery-gap
+        title: Delivery gap
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: mimir
+            model:
+              refId: A
+              instant: true
+              expr: |
+                (
+                    sum by (deployment_environment_name) (
+                      increase({__name__=~"screening_applications_(screened|abandoned)", deployment_environment_name!="staging"}[10m]))
+                  or
+                    0 * sum by (deployment_environment_name) (
+                      increase(http_server_request_duration_count{deployment_environment_name!="staging", http_route="/applications", http_request_method="POST", http_response_status_code="202"}[10m]))
+                )
+                /
+                sum by (deployment_environment_name) (
+                  increase(http_server_request_duration_count{deployment_environment_name!="staging", http_route="/applications", http_request_method="POST", http_response_status_code="202"}[10m]))
+                and
+                sum by (deployment_environment_name) (
+                  increase(http_server_request_duration_count{deployment_environment_name!="staging", http_route="/applications", http_request_method="POST", http_response_status_code="202"}[10m])) >= 20
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [0.9] }
+        for: 10m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          component: service
+        annotations:
+          summary: "Screening ({{ $labels.deployment_environment_name }}) finished fewer than 90% of the applications it accepted in ten minutes."
+          description: >-
+            Applications are accepted with a 202 and not screened. The worker
+            is behind, stopped, or dropping messages; on core NATS a message
+            with no reader is gone.
+          runbook_url: https://github.com/Danish8321/observability/blob/main/docs/runbooks/delivery-gap.md

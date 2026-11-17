@@ -5,16 +5,19 @@
 # linking that runbook; and the collector's tail sampling keeps every abandoned
 # trace while dropping most healthy ones. Grafana's links between the three
 # stores lead where they say (trace to logs, log to trace, exemplar to trace),
-# sustained slow screening emails "Screening slow", and a CouchDB outage under
-# load emails "Error rate" and "Latency".
+# the failed attempts are counted as retries (panel 3.4), sustained slow
+# screening emails "Screening slow" and, because arrivals outpace the worker,
+# "Delivery gap", and a CouchDB outage under load emails "Error rate" and
+# "Latency".
 #
 # The trace ID is chosen here and sent as a W3C traceparent. The services
 # sample parent-based, so the whole flow, NATS hop included, joins that trace
 # and the checks know what to look for.
 #
 # Each later alert waits out a 10m "for" on a 10m window, and the slow and
-# CouchDB faults run one after the other, so this takes about 35 minutes. Runs as its own compose project, removed on exit, and builds the
-# services from the current source; it needs the local stack's ports free.
+# CouchDB faults run one after the other, so this takes about 35 minutes. Runs
+# as its own compose project, removed on exit, and builds the services from the
+# current source; it needs the local stack's ports free.
 set -eu
 
 cd "$(dirname "$0")/../.."
@@ -306,6 +309,15 @@ else
     echo "          screening series in Mimir: $(mimir 'group by (__name__) ({__name__=~"screening.*"})' || :)" >&2
 fi
 
+# Panel 3.4 (docs/diagnostic-queries.md). Every failing application is retried
+# twice before it is abandoned. The counter itself, not its increase: a new
+# series' first sample has no increase.
+if eventually 60 '"reason":"ScreeningProviderException"' mimir 'sum by (reason) (screening_retries) > 0'; then
+    pass "retries are counted by reason (panel 3.4)"
+else
+    fail "no screening_retries for ScreeningProviderException: $body"
+fi
+
 # Slow screening, sustained: one "slow" application (3 s at the provider)
 # every 2 s, faster than the worker clears them. Started before the wait for
 # "Work abandoned" so the two waits overlap. Needs CouchDB up, so it runs
@@ -325,6 +337,9 @@ if [ "${abandoned:-0}" = "1" ]; then
     await "Work abandoned" work-abandoned.md
 fi
 await "Screening slow" screening-slow.md
+# The same load: one arrival every 2 s against 3 s a screening, so the worker
+# finishes about two in three of what the API accepts.
+await "Delivery gap" delivery-gap.md
 kill "$load" 2>/dev/null || true
 
 # CouchDB down: every POST /applications fails with a 500 once the client

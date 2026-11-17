@@ -13,12 +13,17 @@ why they are shaped this way is [ADR-0040](../adr/0040-alerting-as-code-by-email
 | Collector queue filling | [collector-queue-filling](./collector-queue-filling.md) |
 | Store unreachable: Mimir / Loki | [store-unreachable](./store-unreachable.md) |
 | Alerting heartbeat | [alerting-heartbeat](./alerting-heartbeat.md) |
+| Slow consumer | [slow-consumer](./slow-consumer.md) |
+| Broker metrics missing | [broker-metrics-missing](./broker-metrics-missing.md) |
 | Work abandoned | [work-abandoned](./work-abandoned.md) |
 | Error rate | [error-rate](./error-rate.md) |
 | Latency | [latency](./latency.md) |
 | Screening slow | [screening-slow](./screening-slow.md) |
+| Delivery gap | [delivery-gap](./delivery-gap.md) |
 
 **Owner** for every platform alert: Infra, who operate the collector, the
-stores and Grafana (plan R6). A service alert (Work abandoned, Error rate, Latency, Screening slow) belongs to the
-team that owns the service. A change to the configuration itself is a pull
+stores, the broker and Grafana (plan R6). "Slow consumer" is raised by the
+broker but belongs to the team whose subscriber was dropped. A service alert
+(Work abandoned, Error rate, Latency, Screening slow, Delivery gap) belongs to
+the team that owns the service. A change to the configuration itself is a pull
 request to this repository.

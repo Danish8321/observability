@@ -92,7 +92,8 @@ the register and so knows what *should* be sending.
 
 ## Service alerts (D4)
 
-Four rules in the `services` group, each with its runbook:
+Four rules in the `services` group, each with its runbook (D5 adds a fifth,
+below):
 
 | Alert | Condition | For | Fired locally by |
 |---|---|---|---|
@@ -107,3 +108,21 @@ fire, and a healthy screening takes about 10 ms; the plan is amended to match.
 Error rate and Latency have no demo fault of their own: `POST /applications`
 answers 202 before the worker runs, so no screening fault reaches it.
 `e2e-demo.sh` checks all four emails.
+
+## Broker and delivery alerts (D5)
+
+| Alert | Group | Condition | For | Fired locally by |
+|---|---|---|---|---|
+| Slow consumer | platform (`component: broker`) | any increase of `gnatsd_varz_slow_consumers` in 10m | 0s | a raw subscriber that stops reading, flooded on a subject of its own (`e2e-alerting.sh`) |
+| Broker metrics missing | platform (`component: broker`) | `up{job="nats"}` below 1 | 5m | the exporter stopped (`e2e-alerting.sh`) |
+| Delivery gap | services | screened + abandoned below 90% of `POST /applications` 202s, ≥ 20 accepted in 10m | 10m | the `slow` demo fault, sustained: arrivals every 2 s, 3 s a screening (`e2e-demo.sh`) |
+
+"Delivery gap" is not in Rev 3 or the plan's M9 table, which name it without
+defining it. It is read at the ends because core NATS has no queue to measure,
+and because the broker cannot see the reference worker fall behind: NATS.Net
+keeps reading the socket and drops the newest messages in the client once
+16,384 are pending (`DropNewest`, its default), so "Slow consumer" fires only
+for a subscriber that stops reading altogether. Checked against the NATS.Net
+documentation, not induced: overflowing the buffer locally takes more than
+16,384 queued messages. "Slow consumer" has no `for`: each count is a
+subscriber already dropped and its messages already lost.

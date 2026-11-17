@@ -140,9 +140,9 @@ furthest from existing.
 | # | Panel | Needs | Status |
 |---|---|---|---|
 | 3.1 | Oldest unprocessed message age | nothing emits it | ❌ |
-| 3.2 | Consumer lag / backlog depth | `gnatsd_varz_slow_consumers` — a proxy | ⚠️ no lag exists to read |
+| 3.2 | Consumer lag / backlog depth | a queue; core NATS has none | ❌ not available on core NATS (D5) |
 | 3.3 | DLQ depth and arrival rate | no DLQ exists | ❌ |
-| 3.4 | Retry count | retries are span events, not a metric | ⚠️ |
+| 3.4 | Retry count | `screening.retries`, by `reason` | ✅ (D5) |
 | 3.5 | Processing duration p95/p99 | `screening.duration` | ✅ |
 | 3.6 | What is in the DLQ, by workflow | no DLQ exists | ❌ |
 
@@ -189,8 +189,25 @@ already dropped, after the data is gone. Panel it as 3.2 and the twenty-minute
 backlog D3.6 describes reads as a flat zero — the same substitution refused
 above for DLQ depth against `screening.applications.abandoned`.
 
-3.4 is answerable from span events today (`samples/README.md`, retry-as-event)
-but not as a metric, so it is a trace query rather than a panel.
+**Queries, until the panels are built in D10** (Mimir, PromQL; each is checked
+by an e2e script against the running stack):
+
+| Panel | Query | Checked by |
+|---|---|---|
+| 3.4 Retry count | `sum by (deployment_environment_name, job, reason) (increase(screening_retries[$__rate_interval]))` | `e2e-demo.sh` |
+| 3.5 Duration p95 | `histogram_quantile(0.95, sum by (deployment_environment_name, job, le) (rate(screening_duration_bucket[$__rate_interval])))` | `e2e-demo.sh` (Screening slow) |
+| Broker: subscribers dropped | `increase(gnatsd_varz_slow_consumers{job="nats"}[$__rate_interval])` | `e2e-alerting.sh` (Slow consumer) |
+| Broker: connections | `gnatsd_varz_connections{job="nats"}` | `e2e-instrumented.sh` |
+| Broker: scrape health | `up{job="nats"}` | `e2e-alerting.sh` (Broker metrics missing) |
+| Finished ÷ accepted | the first query in [the Delivery gap runbook](../runbooks/delivery-gap.md) | `e2e-demo.sh` (Delivery gap) |
+
+**3.2 is recorded as not available on core NATS, not substituted.** Neither
+the broker nor the client exposes a backlog: a NATS.Net subscriber buffers up to
+16,384 messages in process and then drops the newest, which no broker series
+sees. "Finished ÷ accepted" is the nearest honest signal and backs the Delivery
+gap alert. It compares two rates, so it says the worker is not keeping up; it
+does not say how many messages are waiting. Lag arrives with JetStream (plan
+M10).
 
 ## Dashboard 4 — Stack health
 

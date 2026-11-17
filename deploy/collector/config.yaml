@@ -28,7 +28,8 @@ receivers:
         - job_name: nats
           scrape_interval: 15s
           static_configs:
-            - targets: [nats-exporter:7777]
+            # host:port of prometheus-nats-exporter (deploy/HANDOFF.md).
+            - targets: ["${env:NATS_EXPORTER_TARGET:-nats-exporter:7777}"]
           metric_relabel_configs:
             # Default deny by metric name, the same shape as the attribute
             # allowlist below. The exporter also publishes its own go_*,

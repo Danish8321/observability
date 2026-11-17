@@ -6,9 +6,10 @@ unchanged by the local stack (`docker-compose.yaml`) and checked by
 `.claude/scripts/e2e-stack.sh`. Everything that differs between the local stack
 and production is an environment variable, listed below.
 
-Status: **D2, partial; D3; D4.** Logs, metrics, the platform alerts,
-the four service alerts (Work abandoned, Error rate, Latency, Screening slow), Grafana's links
-between the stores, and exemplars are ready. The collector sends traces to
+Status: **D2, partial; D3; D4; D5.** Logs, metrics, the platform alerts,
+the broker alerts (Slow consumer, Broker metrics missing), the five service
+alerts (Work abandoned, Error rate, Latency, Screening slow, Delivery gap),
+Grafana's links between the stores, and exemplars are ready. The collector sends traces to
 `TRACES_OTLP_ENDPOINT`; the store behind it is Infra's choice (ClickHouse or
 Tempo; see [the stack recommendation](../docs/plans/telemetry-stack-recommendation.html)
 and its open questions), and ADR-0037 is written once that choice is made.
@@ -41,6 +42,7 @@ and its open questions), and ADR-0037 is written once that choice is made.
 | `S3_BUCKET_LOOKUP_TYPE` | Mimir | `path` | `auto` (default) |
 | `LOKI_RETENTION` / `MIMIR_RETENTION` | Loki / Mimir | `720h` (default) | your call (open question 6) |
 | `MIMIR_OUT_OF_ORDER_WINDOW` | Mimir | `1h` (default) | at least the longest store outage the collector queue should cover |
+| `NATS_EXPORTER_TARGET` | collector | `nats-exporter:7777` (default) | `host:port` of the NATS exporter below |
 | `MIMIR_MAX_EXEMPLARS` | Mimir | `100000` (default) | a cap on exemplars held in memory, not a sizing; raise it if the `cortex_ingester_tsdb_exemplar_*` series show exemplars being evicted |
 | `MIMIR_URL` / `LOKI_URL` / `TEMPO_URL` | Grafana | `http://mimir:9009/prometheus` / `http://loki:3100` / `http://tempo:3200` | service URLs (`TEMPO_URL` only if the trace store is Tempo) |
 | `GF_SMTP_ENABLED` / `GF_SMTP_HOST` / `GF_SMTP_FROM_ADDRESS` | Grafana | `true` / `mailpit:1025` / `alerts@raksawi.local` | SES SMTP endpoint, port 587, and a verified sender; add `GF_SMTP_USER` / `GF_SMTP_PASSWORD` from a secret |
@@ -64,6 +66,12 @@ read/write/list on their own bucket only.
   allowlist filters datapoint attributes, not the attributes an exemplar
   carries; today those are only `trace_id` and `span_id`, which
   `e2e-demo.sh` asserts. Governing them is plan D8b and D9b.
+- **A NATS exporter** (`natsio/prometheus-nats-exporter:0.17.3`) beside the
+  broker, run with `-varz -connz -subz -jsz=all http://<nats>:8222` as in
+  `docker-compose.yaml`, and reachable by the collector at
+  `NATS_EXPORTER_TARGET` (ADR-0030). One collector scrape job reads one
+  exporter; a NATS cluster needs one target per node, which is a change to
+  `collector/config.yaml` by our commit.
 
 ## Recommendations, Infra decides
 
