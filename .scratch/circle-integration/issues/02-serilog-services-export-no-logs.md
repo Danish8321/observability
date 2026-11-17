@@ -29,3 +29,26 @@ metrics, and the log signal is silently absent.
 A decision is recorded (ADR if it changes the package), and a Serilog
 service's logs are read back from Loki in the local stack with the allowlist
 applied.
+
+## Comments
+
+### 2026-11-17 — what writeToProviders forwards
+
+From the Serilog.Extensions.Logging source (`LoggerProviderCollectionSink.Emit`,
+`SerilogLogValues`): with `writeToProviders: true`, each provider is called
+with `SerilogLogValues`, an `IReadOnlyList<KeyValuePair<string, object?>>`
+holding every event property (scalars unwrapped to their raw value,
+structures and sequences left as Serilog values) plus `{OriginalFormat}`
+with the template. That is the state shape `ILogger` itself produces, so
+`LogAllowlistProcessor` sees Serilog properties as attributes and filters
+them like any other, and the body is the template, not rendered text
+(ADR-0004 holds).
+
+So option 1 needs no package change and no dependency. Expected cost:
+enricher properties (`SourceContext`, `RequestId`, `MachineName`, span
+enrichers) are undeclared and dropped in-process, counted by
+`raksawi.telemetry.attributes.dropped`. That is the allowlist working;
+which of them deserve declaring is a governance question.
+
+Proof pending: set it in circle and read the logs back from Loki.
+Blocked on reading circle's source in this session.
