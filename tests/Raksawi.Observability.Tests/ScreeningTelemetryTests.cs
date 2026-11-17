@@ -52,6 +52,7 @@ public class ScreeningTelemetryTests
         Assert.Equal("screening.applications.screened", ScreeningTelemetry.Screened.Name);
         Assert.Equal("screening.duration", ScreeningTelemetry.Duration.Name);
         Assert.Equal("screening.applications.abandoned", ScreeningTelemetry.Abandoned.Name);
+        Assert.Equal("screening.retries", ScreeningTelemetry.Retries.Name);
     }
 
     [Fact]
@@ -62,6 +63,7 @@ public class ScreeningTelemetryTests
         Assert.Equal("s", ScreeningTelemetry.Duration.Unit);
         Assert.Equal("{application}", ScreeningTelemetry.Screened.Unit);
         Assert.Equal("{application}", ScreeningTelemetry.Abandoned.Unit);
+        Assert.Equal("{retry}", ScreeningTelemetry.Retries.Unit);
     }
 
     [Fact]

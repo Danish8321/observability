@@ -111,6 +111,10 @@ internal sealed class ScreeningConsumer(
                         { "reason", ex.GetType().Name },
                     }));
 
+                // Bounded: the two retryable exception types in the filter above.
+                ScreeningTelemetry.Retries.Add(1,
+                    new KeyValuePair<string, object?>("reason", ex.GetType().Name));
+
                 logger.LogWarning(
                     "Screening attempt {Attempt} failed for {ApplicationId}, retrying",
                     attempt, submitted.ApplicationId);

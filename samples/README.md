@@ -96,6 +96,10 @@ activity?.SetStatus(ActivityStatusCode.Error, ex.Message);        // gave up
 Marking a retryable attempt as an error makes the error rate meaningless, and a
 meaningless error rate gets ignored — which is worse than not having one.
 
+The event says which application retried. `screening.retries`, a counter by
+`reason`, says how often retrying happens at all: instability that has not yet
+become abandonment (panel 3.4).
+
 ### Abandonment is its own counter
 
 `screening.applications.abandoned` is separate from `screened`, because a

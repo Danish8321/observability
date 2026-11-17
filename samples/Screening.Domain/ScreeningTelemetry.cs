@@ -80,4 +80,18 @@ public static class ScreeningTelemetry
             "screening.applications.abandoned",
             unit: "{application}",
             description: "Applications whose screening failed permanently.");
+
+    /// <summary>
+    /// Attempts that failed and were retried, by <c>reason</c>.
+    /// </summary>
+    /// <remarks>
+    /// The span event says which application retried; this says how often
+    /// retrying happens at all — instability that has not yet become
+    /// abandonment, panel 3.4.
+    /// </remarks>
+    public static readonly Counter<long> Retries =
+        Meter.CreateCounter<long>(
+            "screening.retries",
+            unit: "{retry}",
+            description: "Screening attempts that failed and were retried.");
 }
