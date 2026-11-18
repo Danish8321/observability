@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only, following the mechanism package (ADR-0029). -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <RootNamespace>Raksawi.Observability.SqlClient</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Raksawi.Observability.Analyzers\Raksawi.Observability.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <!-- An integration extends the mechanism layer's provider, never the
+         reverse: core must load no database instrumentation (ADR-0042). -->
+    <ProjectReference Include="..\Raksawi.Observability\Raksawi.Observability.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="$(OpenTelemetryVersion)" />
+  </ItemGroup>
+
+</Project>

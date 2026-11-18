@@ -41,6 +41,7 @@ silently.
 | [0039](./0039-tail-sampling-at-the-collector.md) | Traces are sampled at the collector, after the trace is complete | Accepted — amends 0010 |
 | [0040](./0040-alerting-as-code-by-email.md) | Alerting as code, delivered by email (part 1: the platform watching itself) | Accepted — implements 0013 |
 | [0041](./0041-each-identifier-has-its-own-header.md) | Each correlation identifier has its own header | Accepted — amends 0007, deviates from Rev 3 |
+| [0042](./0042-database-instrumentation-is-opt-in-per-database.md) | Database instrumentation is opt-in, one package per database | Accepted — ahead of the neutral plan's D7/D6b order |
 
 ## Deviations from Rev 3
 
@@ -79,7 +80,7 @@ are the places this repository knowingly differs, each argued in its own ADR:
 
 ## Grouping
 
-**Package shape** — 0001, 0011, 0012, 0017, 0029
+**Package shape** — 0001, 0011, 0012, 0017, 0029, 0042
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
 0026, 0028, 0030, 0031
 **Telemetry schema** — 0006, 0007, 0008, 0041

@@ -1,4 +1,4 @@
-Status: open
+Status: done for SQL Server (ADR-0042); Postgres moved to issue 04
 Priority: medium
 
 # Database instrumentation is not in the package
@@ -37,3 +37,26 @@ keeping KYC out of core, but the database varying by service.
   stack, with the statement text absent after the in-process allowlist.
 - The Postgres keys are taken from a dump, not from documentation (ADR-0018).
 - A service with neither loads neither.
+
+## 2026-11-18 — SQL Server shipped; Postgres split out
+
+Decided with the owner: new dependency agreed, plan-order deviation recorded
+as ADR-0042, proof in a sample in this repo rather than only in circle, and
+Postgres as its own ticket (issue 04).
+
+- `src/Raksawi.Observability.SqlClient`, one call, `AddRaksawiSqlClient()`,
+  on `OpenTelemetry.Instrumentation.SqlClient` at `$(OpenTelemetryVersion)`
+  (1.17.0).
+- `samples/Ledger.Api`, a non-KYC SQL Server service, runs in
+  `e2e-instrumented.sh` against SQL Server 2022. Passed 2026-11-18, 44/44.
+  The new assertions: SqlClient span present with `db.system.name`,
+  `db.namespace` and `db.query.summary`; statement text absent; neither
+  `db.query.text` nor `db.statement` as an attribute; SQL password absent;
+  the in-process drop of `db.query.text` counted.
+- Keys taken from that run's dump: span `SELECT`, kind Client,
+  `db.namespace`, `db.query.summary`, `db.system.name`, `server.address`.
+- "A service with neither loads neither": `Core_references_no_database_instrumentation`
+  (test-fast) checks core references no SqlClient or Npgsql assembly.
+
+Not done: circle still adds SqlClient by hand. Moving it onto
+`AddRaksawiSqlClient()` needs a repacked preview, and that has not been done.

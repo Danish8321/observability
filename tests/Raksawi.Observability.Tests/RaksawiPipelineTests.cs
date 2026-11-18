@@ -73,4 +73,17 @@ public class RaksawiPipelineTests
     {
         Assert.True(RaksawiPipeline.ShouldTrace(null));
     }
+
+    // 🔒 ADR-0042: database instrumentation is opt-in per database. Core
+    // referencing one would load it into every service on another database.
+    [Fact]
+    public void Core_references_no_database_instrumentation()
+    {
+        var referenced = typeof(RaksawiPipeline).Assembly
+            .GetReferencedAssemblies()
+            .Select(name => name.Name ?? "");
+
+        Assert.DoesNotContain(referenced, name => name.Contains("SqlClient", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("Npgsql", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -36,6 +36,17 @@ API=raksawi-e2e-api
 WORKER=raksawi-e2e-worker
 COUCH_PORT=15984
 API_PORT=18080
+# The SQL Server integration (ADR-0042), proven on a service of its own so the
+# screening services keep loading no database instrumentation.
+# shortcut: floating 2022-latest tag, pin a CU tag once the image is mirrored.
+SQL_IMAGE=mcr.microsoft.com/mssql/server:2022-latest
+SQL=sqlserver
+SQL_PASSWORD="E2e-only-Pw1!"
+LEDGER=raksawi-e2e-ledger
+LEDGER_PORT=18081
+# Part of the statement the ledger runs. db.query.text is a Class 3
+# carve-out, so this must reach no store.
+SQL_STATEMENT_TEXT="CAST(0 AS decimal(18,2))"
 
 # 🔒 Class 3. Written to CouchDB, and must appear in no span, log or metric.
 # The single most valuable assertion in this file: it is the failure that
@@ -56,7 +67,7 @@ out_dir="$(mktemp -d)"
 received="$out_dir/received.json"
 
 purge() {
-    docker rm -f "$API" "$WORKER" "$SUT" "$SINK" "$COUCH" "$NATSC" "$NATSEXP" >/dev/null 2>&1 || true
+    docker rm -f "$API" "$WORKER" "$LEDGER" "$SUT" "$SINK" "$COUCH" "$NATSC" "$NATSEXP" "$SQL" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
     docker volume rm "$QUEUE_VOL" "$OUT_VOL" >/dev/null 2>&1 || true
 }
@@ -84,6 +95,7 @@ dotnet publish samples/Screening.Api/Screening.Api.csproj \
     -c Release -o bin/e2e/api --nologo -v q >/dev/null
 dotnet publish samples/Screening.Worker/Screening.Worker.csproj \
     -c Release -o bin/e2e/worker --nologo -v q >/dev/null
+dotnet publish samples/Ledger.Api/Ledger.Api.csproj     -c Release -o bin/e2e/ledger --nologo -v q >/dev/null
 
 echo "== bringing up infrastructure =="
 docker network create "$NET" >/dev/null 2>&1 || true
@@ -101,6 +113,10 @@ MSYS_NO_PATHCONV=1 docker run --rm --user 0 \
 docker run -d --name "$COUCH" --network "$NET" \
     -e COUCHDB_USER=admin -e COUCHDB_PASSWORD=password \
     -p "$COUCH_PORT":5984 couchdb:3.5 >/dev/null
+
+# Started early: SQL Server takes the longest of anything here to accept a
+# connection, and the ledger is polled until it does.
+docker run -d --name "$SQL" --network "$NET"     -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SQL_PASSWORD"     "$SQL_IMAGE" >/dev/null
 
 docker run -d --name "$NATSC" --network "$NET" \
     nats:2.12-alpine -js -m 8222 >/dev/null
@@ -193,6 +209,9 @@ until curl -sf "http://localhost:$API_PORT/health" >/dev/null 2>&1; do
     fi
     sleep 1
 done
+# shellcheck disable=SC2086
+MSYS_NO_PATHCONV=1 docker run -d --name "$LEDGER" --network "$NET"     -v "$(pwd)/bin/e2e/ledger":/app:ro $SVC_ENV     -e "Sql__ConnectionString=Server=$SQL;Database=master;User Id=sa;Password=$SQL_PASSWORD;TrustServerCertificate=true"     -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$LEDGER_PORT":8080     "$RUNTIME_IMAGE" dotnet /app/Ledger.Api.dll >/dev/null
+
 # The API is healthy before the worker subscription is necessarily active.
 sleep 5
 
@@ -200,6 +219,21 @@ echo "== exercising the slice: POST /applications =="
 curl -sf -X POST "http://localhost:$API_PORT/applications" \
     -H 'Content-Type: application/json' \
     -d "{\"applicationId\":\"$APP_ID\",\"applicant\":\"$CANARY\"}" >/dev/null
+
+echo "== exercising the ledger: GET /balances/{account} against SQL Server =="
+# 200 only once SQL Server accepts the connection, so this is also the wait
+# for it. The failed attempts before then are SQL spans too, harmlessly.
+i=0
+until curl -sf "http://localhost:$LEDGER_PORT/balances/e2e" >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [ "$i" -gt 120 ]; then
+        echo "e2e-instrumented.sh: ledger-api never answered from SQL Server." >&2
+        docker logs "$LEDGER" >&2 || true
+        docker logs "$SQL" 2>&1 | tail -20 >&2 || true
+        exit 1
+    fi
+    sleep 1
+done
 
 # The worker screens asynchronously; give it the message before waiting on
 # export.
@@ -221,7 +255,7 @@ dump_received
 while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
     || ! grep -q 'kyc.applications.submitted process' "$received" 2>/dev/null \
     || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null \
-    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null \
+    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null     || ! grep -q '"ledger-api"' "$received" 2>/dev/null \
     || ! grep -q 'otelcol_receiver_accepted_spans' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 120 ]; then
@@ -229,6 +263,7 @@ while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
         echo "--- nats-exporter ---" >&2; docker logs "$NATSEXP" >&2 || true
         echo "--- api ---" >&2; docker logs "$API" >&2 || true
         echo "--- worker ---" >&2; docker logs "$WORKER" >&2 || true
+        echo "--- ledger ---" >&2; docker logs "$LEDGER" >&2 || true
         echo "--- collector ---" >&2; docker logs "$SUT" >&2 || true
         echo "--- sink ---" >&2; docker logs "$SINK" >&2 || true
         echo "--- received so far ---" >&2; cat "$received" >&2 || true
@@ -398,6 +433,22 @@ absent 'http_server_request_duration' "the receiver's own HTTP server metrics"
 # here because it is load-bearing for the dead-target half of I3.9 and it is
 # not obvious from either scrape job's configuration that it survives them.
 present '"name":"up"' 'the per-target scrape health series'
+
+# 🔒 The SQL Server integration (ADR-0042). The span arrives with the keys a
+# 2026-11-18 dump showed it emitting, and the statement text, a Class 3
+# carve-out, arrives nowhere under either semantic-convention key.
+present '"ledger-api"' 'ledger-api resource'
+present 'OpenTelemetry.Instrumentation.SqlClient' 'the SQL Server client span'
+present '"key":"db.system.name"' 'db.system.name on the SQL span'
+present '"key":"db.namespace"' 'db.namespace on the SQL span'
+present '"key":"db.query.summary"' 'db.query.summary on the SQL span'
+absent "$SQL_STATEMENT_TEXT" 'the SQL statement text'
+absent '"key":"db.query.text"' 'db.query.text as an attribute'
+absent '"key":"db.statement"' 'db.statement as an attribute'
+absent "$SQL_PASSWORD" 'the SQL Server password'
+# The drop happened in-process, not only at the collector: the dropped-key
+# counter names it. A label value, so it is not the leak the line above checks.
+present '"stringValue":"db.query.text"' 'the in-process drop of db.query.text, counted'
 
 # Carve-outs, on real HTTP spans this time. CouchDB is reached with a Basic
 # credential, so the header carve-out is doing real work here.
