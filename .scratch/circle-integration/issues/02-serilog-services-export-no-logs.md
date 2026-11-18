@@ -1,4 +1,4 @@
-Status: proven — option 1 works; decision to record
+Status: proven — recipe run end to end; decision to record
 Priority: high
 
 # A service that logs through Serilog exports no logs
@@ -92,7 +92,7 @@ line, so logs link to their traces. No Serilog property reached Loki.
   as Serilog JSON and once in the Microsoft console format (`info: ...`),
   from the default providers `WebApplication.CreateBuilder` adds. An adopter
   needs `builder.Logging.ClearProviders()` *before*
-  `AddRaksawiObservability(...)`. That ordering is unproven: not run.
+  `AddRaksawiObservability(...)`. Proven the same day (below).
 
 **Left for the decision:** option 1 needs no package change, so it needs no
 ADR. The adoption recipe still needs writing down: `writeToProviders: true`,
@@ -100,3 +100,29 @@ clearing the default providers in that order, and which Serilog keys to
 declare (request method, path and status at least). Whether that recipe
 lives in `samples/README.md` or an adopter guide, and which keys to declare,
 is the owner's call.
+
+### 2026-11-18 — ClearProviders ordering proven
+
+Circle `LoggingServiceCollectionExtensions.cs:53` gains
+`builder.Logging.ClearProviders();` immediately before `UseSerilog(...)`.
+`AddSerilogLogging()` runs before `AddObservability()` (`Program.cs:14-15`),
+so the package's OpenTelemetry provider is registered after the clear and
+survives it. Circle `check.sh`: 0 warnings, 0 errors.
+
+Same run as above, `GET /v1/accounts` x30, all 200:
+
+- Console: 0 lines in the Microsoft format, 217 Serilog JSON lines. The
+  doubling is gone.
+- Loki: 31 lines from the run window (30 request lines and the https
+  warning), the same count as without the clear.
+
+So the adoption recipe for a Serilog service is two lines, in this order,
+with the Serilog setup before `AddRaksawiObservability(...)`:
+
+```csharp
+builder.Logging.ClearProviders();
+builder.Host.UseSerilog((ctx, _, cfg) => { ... }, writeToProviders: true);
+```
+
+Still open: where the recipe is written down, and which Serilog keys to
+declare.
