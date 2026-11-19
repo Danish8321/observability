@@ -38,6 +38,7 @@ silently.
 | [0029](./0029-net48-deferred-out-of-the-build.md) | .NET Framework 4.8 deferred entirely — out of the build, not merely unvalidated | Accepted — reverses 0012, deviates from Rev 3 |
 | [0030](./0030-broker-health-arrives-by-scrape.md) | Broker health arrives by scrape, in a pipeline of its own | Accepted — extends 0009, first non-OTLP path |
 | [0031](./0031-the-collector-scrapes-itself.md) | The collector scrapes itself, and is not exempt from its own allowlist | Accepted — extends 0030, implements I3.8 |
+| [0034](./0034-standard-otel-variables-resolve-before-code.md) | The standard `OTEL_*` variables resolve before code | Accepted — environment step of C2 only, ahead of D6a |
 | [0039](./0039-tail-sampling-at-the-collector.md) | Traces are sampled at the collector, after the trace is complete | Accepted — amends 0010 |
 | [0040](./0040-alerting-as-code-by-email.md) | Alerting as code, delivered by email (part 1: the platform watching itself) | Accepted — implements 0013 |
 | [0041](./0041-each-identifier-has-its-own-header.md) | Each correlation identifier has its own header | Accepted — amends 0007, deviates from Rev 3 |
@@ -84,7 +85,7 @@ are the places this repository knowingly differs, each argued in its own ADR:
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
 0026, 0028, 0030, 0031
 **Telemetry schema** — 0006, 0007, 0008, 0041
-**Runtime behaviour** — 0005, 0010, 0039
+**Runtime behaviour** — 0005, 0010, 0034, 0039
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
 **Detection** — 0040
 **Estate facts** — 0023, 0024, 0027

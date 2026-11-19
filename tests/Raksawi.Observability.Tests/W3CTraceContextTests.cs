@@ -12,6 +12,9 @@ namespace Raksawi.Observability.Tests;
 /// was computed on both runtimes and observable on neither, so these assert it
 /// is produced and that something writes it.
 /// </summary>
+// Serialised with every test that calls AddRaksawiObservability, which records
+// into the same process-wide gauge.
+[Collection("Process-wide trace context")]
 public sealed class W3CTraceContextTests
 {
     [Fact]

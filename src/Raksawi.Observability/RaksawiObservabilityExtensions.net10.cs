@@ -19,17 +19,35 @@ public static class RaksawiObservabilityExtensions
     /// misconfiguration — an absent service name or sampler is a configuration
     /// error, not a telemetry outage.
     /// </summary>
+    /// <remarks>
+    /// Options resolve defaults → the standard <c>OTEL_*</c> variables →
+    /// <paramref name="configure"/>, so code wins. <c>OTEL_SDK_DISABLED=true</c>
+    /// is the exception: nothing is registered and code cannot re-enable it
+    /// (ADR-0034, <c>docs/configuration.md</c>).
+    /// </remarks>
     public static IHostApplicationBuilder AddRaksawiObservability(
         this IHostApplicationBuilder builder,
-        Action<RaksawiObservabilityOptions> configure)
+        Action<RaksawiObservabilityOptions> configure) =>
+        builder.AddRaksawiObservability(configure, Environment.GetEnvironmentVariable);
+
+    internal static IHostApplicationBuilder AddRaksawiObservability(
+        this IHostApplicationBuilder builder,
+        Action<RaksawiObservabilityOptions> configure,
+        Func<string, string?> environment)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
+
+        if (OtelEnvironment.IsSdkDisabled(environment))
+        {
+            return builder;
+        }
 
         var options = new RaksawiObservabilityOptions
         {
             IsDevelopment = builder.Environment.IsDevelopment(),
         };
+        OtelEnvironment.Apply(options, environment);
         configure(options);
         options.Validate();
 

@@ -41,10 +41,19 @@ internal static class RaksawiPipeline
         ResourceBuilder resource) =>
         builder
             .SetResourceBuilder(resource)
-            .SetSampler(new ParentBasedSampler(
-                new TraceIdRatioBasedSampler(options.EffectiveSamplingRatio)))
+            .SetSampler(CreateSampler(options))
             .AddSource(RaksawiObservabilityOptions.NatsActivitySourceName)
             .AddSource(options.ActivitySources.ToArray());
+
+    /// <summary>
+    /// Parent-based unless <c>OTEL_TRACES_SAMPLER</c> named one of the three
+    /// samplers that ignore the parent (ADR-0034).
+    /// </summary>
+    internal static Sampler CreateSampler(RaksawiObservabilityOptions options)
+    {
+        var root = new TraceIdRatioBasedSampler(options.EffectiveSamplingRatio);
+        return options.SamplerIgnoresParent ? root : new ParentBasedSampler(root);
+    }
 
     /// <summary>
     /// The allowlist processor and the exporter, in that order.
@@ -165,7 +174,7 @@ internal static class RaksawiPipeline
     /// </remarks>
     internal static bool ShouldTrace(Uri? uri) => uri is null || !CouchDbUrlPolicy.IsChangesFeed(uri);
 
-    private static void ConfigureOtlp(OtlpExporterOptions otlp, RaksawiObservabilityOptions options, string signalPath)
+    internal static void ConfigureOtlp(OtlpExporterOptions otlp, RaksawiObservabilityOptions options, string signalPath)
     {
         // http/protobuf, not gRPC: 4317 is closed estate-wide and gRPC is
         // unsupported on the .NET Framework target this package also serves.
@@ -174,8 +183,11 @@ internal static class RaksawiPipeline
         // v1/metrics) when Endpoint comes from its own default or from
         // OTEL_EXPORTER_OTLP_ENDPOINT. Setting Endpoint programmatically, as
         // this always does, opts out of that — so the path is appended here
-        // explicitly, or every export 404s against the bare endpoint.
+        // explicitly, or every export 404s against the bare endpoint. Appended,
+        // as the standard does: without the trailing slash, Uri resolution
+        // would replace a base path's last segment (/otlp) instead.
+        var endpoint = options.OtlpEndpoint.AbsoluteUri;
         otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
-        otlp.Endpoint = new Uri(options.OtlpEndpoint, signalPath);
+        otlp.Endpoint = new Uri(new Uri(endpoint.EndsWith('/') ? endpoint : endpoint + "/"), signalPath);
     }
 }

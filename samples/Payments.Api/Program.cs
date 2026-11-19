@@ -10,7 +10,8 @@ builder.AddRaksawiObservability(o =>
 {
     o.ServiceName = "payments-api";
     o.ServiceNamespace = "treasury";
-    o.OtlpEndpoint = new Uri(builder.Configuration["Otlp:Endpoint"] ?? "http://localhost:4318");
+    // No endpoint in code: OTEL_EXPORTER_OTLP_ENDPOINT supplies it (ADR-0034),
+    // and anything set here would win over it.
     o.SamplingRatio = 1.0;
 });
 builder.AddRaksawiNpgsql();

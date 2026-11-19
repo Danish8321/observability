@@ -231,9 +231,14 @@ MSYS_NO_PATHCONV=1 docker run -d --name "$LEDGER" --network "$NET" \
     -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$LEDGER_PORT":8080 \
     "$RUNTIME_IMAGE" dotnet /app/Ledger.Api.dll >/dev/null
 
+# Payments sets no endpoint in code and reads none from Otlp__Endpoint, so its
+# telemetry arriving at all proves OTEL_EXPORTER_OTLP_ENDPOINT is honoured
+# (ADR-0034): the package sets the exporter's endpoint explicitly, so an
+# ignored variable would export to localhost and the payments checks fail.
 # shellcheck disable=SC2086
 MSYS_NO_PATHCONV=1 docker run -d --name "$PAYMENTS" --network "$NET" \
     -v "$(pwd)/bin/e2e/payments":/app:ro $SVC_ENV \
+    -e OTEL_EXPORTER_OTLP_ENDPOINT="http://$SUT:4318" \
     -e "Postgres__ConnectionString=Host=$PG;Database=postgres;Username=postgres;Password=$PG_PASSWORD" \
     -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$PAYMENTS_PORT":8080 \
     "$RUNTIME_IMAGE" dotnet /app/Payments.Api.dll >/dev/null

@@ -35,7 +35,25 @@ public sealed class RaksawiObservabilityOptions
     /// Head sampling ratio. Absent configuration is a production boot failure
     /// per ADR-0010; this default applies only when <see cref="IsDevelopment"/>.
     /// </summary>
-    public double? SamplingRatio { get; set; }
+    public double? SamplingRatio
+    {
+        get => _samplingRatio;
+        set
+        {
+            _samplingRatio = value;
+            // A ratio set in code is parentbased_traceidratio (plan C2), even
+            // over an environment sampler that ignored the parent.
+            SamplerIgnoresParent = false;
+        }
+    }
+
+    private double? _samplingRatio;
+
+    /// <summary>
+    /// True only for the non-parent-based <c>OTEL_TRACES_SAMPLER</c> values
+    /// (<c>always_on</c>, <c>always_off</c>, <c>traceidratio</c>).
+    /// </summary>
+    internal bool SamplerIgnoresParent { get; set; }
 
     /// <summary>
     /// When true, an absent <see cref="SamplingRatio"/> defaults to 1.0 instead
