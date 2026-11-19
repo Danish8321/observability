@@ -167,3 +167,15 @@ which the package never used. Circle was run with its endpoint only in
 traces after the process started, SQL spans included. That check was a manual
 query; no script asserts on circle. Circle sets no sampler in code, so
 `OTEL_TRACES_SAMPLER` now applies to it as well.
+
+### 2026-11-19 — friction 4 has a decided route
+
+ADR-0043, accepted today: log fields are filtered by a denylist unless a
+service opts into the allowlist with `Governance:Required=true`. The plan
+owner confirmed circle does not handle regulated customer data, so circle
+stays on the denylist. Its fields (`AccountId`, `EntryId`, `Topic`…) will
+arrive without a vocabulary pack once ADR-0043 is implemented. Circle may add
+its own risky names to `Observability:Logs:DeniedKeys`, e.g. `RawStatus`,
+`ProviderDetail`; `{To}` and `{Body}` are on the estate denylist. Friction 4
+stays open until the implementation lands. Span attributes circle sets itself
+are not covered by ADR-0043 and are unchecked.
