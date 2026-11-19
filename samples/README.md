@@ -151,6 +151,27 @@ survives and the other does not.
 The message **body** is not filtered by key and cannot be, which is what makes
 the interpolation ban above load-bearing rather than stylistic.
 
+### A service on Serilog: two lines, in this order
+
+`UseSerilog` replaces the logging providers, so the package's OpenTelemetry
+provider receives nothing, and nothing warns. Forward Serilog to the providers,
+and clear the defaults first, or every console line prints twice:
+
+```csharp
+builder.Logging.ClearProviders();                                         // first
+builder.Host.UseSerilog((ctx, _, cfg) => { /* ... */ }, writeToProviders: true);
+builder.AddRaksawiObservability(o => { /* ... */ });                      // after
+```
+
+Serilog's own properties then pass the same allowlist as any log property,
+and its usual names match nothing, so they are dropped and counted. That
+includes `RequestMethod`, `RequestPath`, `StatusCode` and `Elapsed` from
+`UseSerilogRequestLogging`, `SourceContext`, and the `TraceId`/`SpanId`
+enrichers. None is declared, on purpose. The request line carries `trace_id`,
+and the server span it opens already has the method, route, status and
+duration under allowlisted keys. Name your own properties in the estate
+vocabulary, as above. Proven on the circle repo, circle-integration issue 02.
+
 ### CouchDB is HTTP, and that is the whole risk
 
 No database instrumentation package. `HttpClient` instrumentation produces the

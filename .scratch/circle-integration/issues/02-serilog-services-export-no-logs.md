@@ -1,4 +1,4 @@
-Status: proven — recipe run end to end; decision to record
+Status: done — option 1, recipe in samples/README.md
 Priority: high
 
 # A service that logs through Serilog exports no logs
@@ -126,3 +126,18 @@ builder.Host.UseSerilog((ctx, _, cfg) => { ... }, writeToProviders: true);
 
 Still open: where the recipe is written down, and which Serilog keys to
 declare.
+
+### 2026-11-19 — decided
+
+**Option 1, `writeToProviders: true` with `ClearProviders()` first.** No
+package change, so no ADR. The recipe is in `samples/README.md`, "A service
+on Serilog", the guide the estate is pointed to for writing a service.
+
+**No Serilog keys declared.** The request-logging properties duplicate the
+ASP.NET Core server span, which already carries method, route, status and
+duration under allowlisted keys, and the log line links to it by `trace_id`.
+`RequestPath` is a raw path that can carry identifiers, which is the risk
+`http.route` avoids. `TraceId`/`SpanId` duplicate the record's own fields.
+`SourceContext` and `Application` are the only ones with diagnostic value
+not available elsewhere. Declaring them is a governance change for when an
+incident needs it, not before.
