@@ -43,7 +43,7 @@ silently.
 | [0040](./0040-alerting-as-code-by-email.md) | Alerting as code, delivered by email (part 1: the platform watching itself) | Accepted — implements 0013 |
 | [0041](./0041-each-identifier-has-its-own-header.md) | Each correlation identifier has its own header | Accepted — amends 0007, deviates from Rev 3 |
 | [0042](./0042-database-instrumentation-is-opt-in-per-database.md) | Database instrumentation is opt-in, one package per database | Accepted — ahead of the neutral plan's D7/D6b order |
-| [0043](./0043-log-fields-are-open-unless-a-service-opts-into-strict.md) | Log fields are open unless a service opts into strict | Proposed — would amend 0003, 0009, 0028 and deviate from Rev 3 |
+| [0043](./0043-log-fields-are-filtered-by-a-denylist-unless-a-service-opts-into-the-allowlist.md) | Log fields are filtered by a denylist unless a service opts into the allowlist | Proposed — would amend 0003, 0009, 0028 and deviate from Rev 3 |
 
 ## Deviations from Rev 3
 
