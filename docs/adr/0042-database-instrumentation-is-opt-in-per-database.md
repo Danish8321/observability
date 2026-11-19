@@ -30,7 +30,7 @@ Each database gets its own integration package, which the service opts into:
 | Database | Package | Call |
 |---|---|---|
 | SQL Server | `Raksawi.Observability.SqlClient` (on `OpenTelemetry.Instrumentation.SqlClient`) | `builder.AddRaksawiSqlClient()` |
-| Postgres | not yet (circle-integration issue 04) | |
+| Postgres | `Raksawi.Observability.Npgsql` (on `Npgsql.OpenTelemetry`), added 2026-11-19, see the amendment | `builder.AddRaksawiNpgsql()` |
 | CouchDB | none: HTTP, covered by core's HttpClient instrumentation and `CouchDbUrlPolicy` | |
 
 - Core references no database instrumentation. The test
@@ -71,3 +71,26 @@ fit it. The call is one line, so the rework is small.
   same advisory.
 - A service on SQL Server needs one more call than a service on CouchDB.
   That is the price of not loading database instrumentation it does not use.
+
+## Amendment, 2026-11-19: Postgres, and a connection-string carve-out
+
+`Raksawi.Observability.Npgsql` follows the same shape. Npgsql instruments
+itself, so the package only subscribes to its `Npgsql` source, and it is
+versioned with Npgsql (10.0.3), not with OpenTelemetry. `samples/Payments.Api`
+runs it in `e2e-instrumented.sh` against Postgres 17.
+
+From the dump: Npgsql names the query span after the system (`postgresql`)
+rather than the statement, and adds a `CONNECT postgres` span. Both are kind
+Client, with `db.system.name`, `db.namespace` and `server.address`, plus
+`db.npgsql.connection_id` and **`db.npgsql.data_source`**. `db.query.text`
+was dropped and counted. There is no `db.query.summary`.
+
+`db.npgsql.data_source` is the connection string. Npgsql strips the password
+by default and keeps it under `Persist Security Info=true`, so a credential
+was one setting away from passing both enforcement points under the `db.*`
+family. **It is now a carve-out**, along with the general-form
+`db.connection_string`, following the `db.statement` precedent: denied
+in-process (`AllowlistRules.DeniedKeys`) and at the collector for spans, logs
+and metric dimensions. The contract test keeps the two in step. Nothing
+diagnostic is lost: host and database are already `server.address` and
+`db.namespace`.

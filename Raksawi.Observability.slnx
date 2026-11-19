@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/Ledger.Api/Ledger.Api.csproj" />
+    <Project Path="samples/Payments.Api/Payments.Api.csproj" />
     <Project Path="samples/Screening.Api/Screening.Api.csproj" />
     <Project Path="samples/Screening.Domain/Screening.Domain.csproj" />
     <Project Path="samples/Screening.Worker/Screening.Worker.csproj" />
@@ -8,6 +9,7 @@
   <Folder Name="/src/">
     <Project Path="src/Raksawi.Observability.Analyzers/Raksawi.Observability.Analyzers.csproj" />
     <Project Path="src/Raksawi.Observability.Kyc/Raksawi.Observability.Kyc.csproj" />
+    <Project Path="src/Raksawi.Observability.Npgsql/Raksawi.Observability.Npgsql.csproj" />
     <Project Path="src/Raksawi.Observability.SqlClient/Raksawi.Observability.SqlClient.csproj" />
     <Project Path="src/Raksawi.Observability/Raksawi.Observability.csproj" />
   </Folder>

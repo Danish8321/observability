@@ -47,6 +47,13 @@ LEDGER_PORT=18081
 # Part of the statement the ledger runs. db.query.text is a Class 3
 # carve-out, so this must reach no store.
 SQL_STATEMENT_TEXT="CAST(0 AS decimal(18,2))"
+# The Postgres integration, the same way.
+PG_IMAGE=postgres:17-alpine
+PG=postgres
+PG_PASSWORD="E2e-only-PgPw1"
+PAYMENTS=raksawi-e2e-payments
+PAYMENTS_PORT=18082
+PG_STATEMENT_TEXT="CAST(0 AS numeric(18,2))"
 
 # 🔒 Class 3. Written to CouchDB, and must appear in no span, log or metric.
 # The single most valuable assertion in this file: it is the failure that
@@ -67,7 +74,7 @@ out_dir="$(mktemp -d)"
 received="$out_dir/received.json"
 
 purge() {
-    docker rm -f "$API" "$WORKER" "$LEDGER" "$SUT" "$SINK" "$COUCH" "$NATSC" "$NATSEXP" "$SQL" >/dev/null 2>&1 || true
+    docker rm -f "$API" "$WORKER" "$LEDGER" "$SUT" "$SINK" "$COUCH" "$NATSC" "$NATSEXP" "$SQL" "$PAYMENTS" "$PG" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
     docker volume rm "$QUEUE_VOL" "$OUT_VOL" >/dev/null 2>&1 || true
 }
@@ -95,7 +102,10 @@ dotnet publish samples/Screening.Api/Screening.Api.csproj \
     -c Release -o bin/e2e/api --nologo -v q >/dev/null
 dotnet publish samples/Screening.Worker/Screening.Worker.csproj \
     -c Release -o bin/e2e/worker --nologo -v q >/dev/null
-dotnet publish samples/Ledger.Api/Ledger.Api.csproj     -c Release -o bin/e2e/ledger --nologo -v q >/dev/null
+dotnet publish samples/Ledger.Api/Ledger.Api.csproj \
+    -c Release -o bin/e2e/ledger --nologo -v q >/dev/null
+dotnet publish samples/Payments.Api/Payments.Api.csproj \
+    -c Release -o bin/e2e/payments --nologo -v q >/dev/null
 
 echo "== bringing up infrastructure =="
 docker network create "$NET" >/dev/null 2>&1 || true
@@ -116,7 +126,12 @@ docker run -d --name "$COUCH" --network "$NET" \
 
 # Started early: SQL Server takes the longest of anything here to accept a
 # connection, and the ledger is polled until it does.
-docker run -d --name "$SQL" --network "$NET"     -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SQL_PASSWORD"     "$SQL_IMAGE" >/dev/null
+docker run -d --name "$SQL" --network "$NET" \
+    -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SQL_PASSWORD" \
+    "$SQL_IMAGE" >/dev/null
+
+docker run -d --name "$PG" --network "$NET" \
+    -e POSTGRES_PASSWORD="$PG_PASSWORD" "$PG_IMAGE" >/dev/null
 
 docker run -d --name "$NATSC" --network "$NET" \
     nats:2.12-alpine -js -m 8222 >/dev/null
@@ -210,7 +225,18 @@ until curl -sf "http://localhost:$API_PORT/health" >/dev/null 2>&1; do
     sleep 1
 done
 # shellcheck disable=SC2086
-MSYS_NO_PATHCONV=1 docker run -d --name "$LEDGER" --network "$NET"     -v "$(pwd)/bin/e2e/ledger":/app:ro $SVC_ENV     -e "Sql__ConnectionString=Server=$SQL;Database=master;User Id=sa;Password=$SQL_PASSWORD;TrustServerCertificate=true"     -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$LEDGER_PORT":8080     "$RUNTIME_IMAGE" dotnet /app/Ledger.Api.dll >/dev/null
+MSYS_NO_PATHCONV=1 docker run -d --name "$LEDGER" --network "$NET" \
+    -v "$(pwd)/bin/e2e/ledger":/app:ro $SVC_ENV \
+    -e "Sql__ConnectionString=Server=$SQL;Database=master;User Id=sa;Password=$SQL_PASSWORD;TrustServerCertificate=true" \
+    -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$LEDGER_PORT":8080 \
+    "$RUNTIME_IMAGE" dotnet /app/Ledger.Api.dll >/dev/null
+
+# shellcheck disable=SC2086
+MSYS_NO_PATHCONV=1 docker run -d --name "$PAYMENTS" --network "$NET" \
+    -v "$(pwd)/bin/e2e/payments":/app:ro $SVC_ENV \
+    -e "Postgres__ConnectionString=Host=$PG;Database=postgres;Username=postgres;Password=$PG_PASSWORD" \
+    -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$PAYMENTS_PORT":8080 \
+    "$RUNTIME_IMAGE" dotnet /app/Payments.Api.dll >/dev/null
 
 # The API is healthy before the worker subscription is necessarily active.
 sleep 5
@@ -230,6 +256,19 @@ until curl -sf "http://localhost:$LEDGER_PORT/balances/e2e" >/dev/null 2>&1; do
         echo "e2e-instrumented.sh: ledger-api never answered from SQL Server." >&2
         docker logs "$LEDGER" >&2 || true
         docker logs "$SQL" 2>&1 | tail -20 >&2 || true
+        exit 1
+    fi
+    sleep 1
+done
+
+echo "== exercising payments: GET /payments/{payment}/amount against Postgres =="
+i=0
+until curl -sf "http://localhost:$PAYMENTS_PORT/payments/e2e/amount" >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [ "$i" -gt 120 ]; then
+        echo "e2e-instrumented.sh: payments-api never answered from Postgres." >&2
+        docker logs "$PAYMENTS" >&2 || true
+        docker logs "$PG" 2>&1 | tail -20 >&2 || true
         exit 1
     fi
     sleep 1
@@ -255,7 +294,9 @@ dump_received
 while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
     || ! grep -q 'kyc.applications.submitted process' "$received" 2>/dev/null \
     || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null \
-    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null     || ! grep -q '"ledger-api"' "$received" 2>/dev/null \
+    || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null \
+    || ! grep -q '"ledger-api"' "$received" 2>/dev/null \
+    || ! grep -q '"payments-api"' "$received" 2>/dev/null \
     || ! grep -q 'otelcol_receiver_accepted_spans' "$received" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -gt 120 ]; then
@@ -264,6 +305,7 @@ while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
         echo "--- api ---" >&2; docker logs "$API" >&2 || true
         echo "--- worker ---" >&2; docker logs "$WORKER" >&2 || true
         echo "--- ledger ---" >&2; docker logs "$LEDGER" >&2 || true
+        echo "--- payments ---" >&2; docker logs "$PAYMENTS" >&2 || true
         echo "--- collector ---" >&2; docker logs "$SUT" >&2 || true
         echo "--- sink ---" >&2; docker logs "$SINK" >&2 || true
         echo "--- received so far ---" >&2; cat "$received" >&2 || true
@@ -449,6 +491,21 @@ absent "$SQL_PASSWORD" 'the SQL Server password'
 # The drop happened in-process, not only at the collector: the dropped-key
 # counter names it. A label value, so it is not the leak the line above checks.
 present '"stringValue":"db.query.text"' 'the in-process drop of db.query.text, counted'
+
+# 🔒 The Postgres integration (ADR-0042), the same rules; the statement-key
+# absences above are whole-file and cover it too. Keys from a 2026-11-19 dump:
+# Npgsql names the span after the system ("postgresql"), not the statement.
+present '"payments-api"' 'payments-api resource'
+present '"name":"Npgsql"' 'the Postgres client span'
+present '"stringValue":"postgresql"' 'db.system.name = postgresql'
+absent "$PG_STATEMENT_TEXT" 'the Postgres statement text'
+absent "$PG_PASSWORD" 'the Postgres password'
+# Npgsql emits its connection string as db.npgsql.data_source, password
+# stripped only by default. Carved out (ADR-0042), so it must be absent as an
+# attribute and present as a counted drop.
+absent '"key":"db.npgsql.data_source"' 'the Postgres connection string as an attribute'
+absent '"key":"db.connection_string"' 'a connection string under the general key'
+present '"stringValue":"db.npgsql.data_source"' 'the in-process drop of the connection string, counted'
 
 # Carve-outs, on real HTTP spans this time. CouchDB is reached with a Basic
 # credential, so the header carve-out is doing real work here.

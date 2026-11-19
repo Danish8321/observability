@@ -190,9 +190,11 @@ primary object rather than reviewing keys one at a time.
 | `http.response.header.*` | 4 | Includes `Set-Cookie`. Same opt-in status |
 | `url.full` | 3 | Carries identifiers where routes encode them — Rev 3 **D0.4b** |
 | `url.query` | 3 | Same |
-| `db.query.text` | 3 | **Nothing emits this** — the database is CouchDB, per [ADR-0023](./adr/0023-couchdb-changes-the-database-surface.md). Carved out anyway, costlessly, so a future SQL component cannot arrive unnoticed |
+| `db.query.text` | 3 | Statement text can carry literal values. Carved out first for CouchDB services, where nothing emits it ([ADR-0023](./adr/0023-couchdb-changes-the-database-surface.md)). Since [ADR-0042](./adr/0042-database-instrumentation-is-opt-in-per-database.md), SqlClient and Npgsql emit it, and `e2e-instrumented.sh` asserts it dropped and counted |
 | `db.statement` | 3 | Pre-rename form of the above. Same reasoning |
-| `db.query.parameter.*` | 3 | Same reasoning |
+| `db.query.parameter.*` | 3 | Parameter values are row data |
+| `db.npgsql.data_source` | 4 | Npgsql's connection string. Password stripped by default, kept under `Persist Security Info=true`. Host and database are already in `server.address` and `db.namespace` ([ADR-0042](./adr/0042-database-instrumentation-is-opt-in-per-database.md)) |
+| `db.connection_string` | 4 | General form of the above. Same reasoning |
 | `url.full`, `url.query` **on CouchDB spans** | 3 | 🔒 **The real database carve-out.** CouchDB is HTTP: `GET /{db}/{docid}` puts the document ID in the path and `_view?key=` puts the lookup key in the query string. QD2 answered 2026-08-11 — document IDs are opaque, not derived from applicant data — so this carve-out is now defense-in-depth rather than the compliance-blocking case it was drafted against |
 
 **How the two `url.*` rows resolve in code.** They read as contradictory and are

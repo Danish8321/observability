@@ -19,6 +19,7 @@ POST /applications ──▶ screening-api ──▶ CouchDB (read, write)
 | `Screening.Api` | One-call setup, correlation middleware, Class 2 on the server span |
 | `Screening.Worker` | Consumer spans, retry versus redelivery, abandonment as a signal |
 | `Ledger.Api` | Not KYC: mechanism layer plus the SQL Server integration, nothing else (ADR-0042) |
+| `Payments.Api` | Not KYC: mechanism layer plus the Postgres integration, nothing else (ADR-0042) |
 
 ---
 
@@ -188,20 +189,24 @@ o.CouchDbHosts.Add(new Uri(couchDbUrl).Host);
 on CouchDB spans — dropped, not leaked. A real span without `url.full` means
 the host is wrong.
 
-### SQL Server is one more call, and the statement text never leaves
+### SQL Server and Postgres are one more call, and the statement text never leaves
 
-`Ledger.Api` keeps its data in SQL Server. Database instrumentation is one
-package per database and never in core (ADR-0042), so a SQL Server service adds
-one line after the core call:
+`Ledger.Api` keeps its data in SQL Server and `Payments.Api` in Postgres.
+Database instrumentation is one package per database and never in core
+(ADR-0042), so a service adds the one line for its database after the core
+call:
 
 ```csharp
-builder.AddRaksawiSqlClient();
+builder.AddRaksawiSqlClient();   // SQL Server
+builder.AddRaksawiNpgsql();      // Postgres
 ```
 
-The span carries `db.system.name`, `db.namespace`, `db.query.summary` and
-`server.address`. 🔒 The statement text (`db.query.text`) is Class 3, since a
-statement can carry literal values. The in-process allowlist drops it and
-counts the drop, with nothing to configure.
+Both spans carry `db.system.name`, `db.namespace` and `server.address`, and
+SQL Server's also carries `db.query.summary`. 🔒 The statement text
+(`db.query.text`) is Class 3, since a statement can carry literal values.
+Npgsql's connection string (`db.npgsql.data_source`) is one setting away from
+carrying the password. The in-process allowlist drops both and counts the
+drops, with nothing to configure.
 
 ### Class 3 is stored, never emitted
 

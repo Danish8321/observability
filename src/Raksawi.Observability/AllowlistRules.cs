@@ -140,11 +140,17 @@ internal static class AllowlistRules
     internal static readonly string[] DeniedKeys =
     [
         // What SetDbStatementForText = false exists to suppress, plus its
-        // pre-rename form. Nothing emits these today — the database is CouchDB
-        // (ADR-0023) — carved out costlessly so a future SQL component cannot
-        // arrive unnoticed.
+        // pre-rename form. Carved out while the estate was CouchDB-only
+        // (ADR-0023); SqlClient and Npgsql emit db.query.text since ADR-0042.
         "db.query.text",
         "db.statement",
+
+        // A connection string. Npgsql emits it with the password stripped by
+        // default and kept under Persist Security Info=true, so the credential
+        // is one setting away; host and database are already in server.address
+        // and db.namespace (ADR-0042). Plus the general form, same reasoning.
+        "db.npgsql.data_source",
+        "db.connection_string",
     ];
 
     /// <summary>

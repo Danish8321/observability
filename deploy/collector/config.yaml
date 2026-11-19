@@ -131,7 +131,7 @@ processors:
           # Carve-outs first: these live inside otherwise-allowed families, so
           # the keep below would let them through.
           - delete_matching_keys(span.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
-          - delete_matching_keys(span.attributes, "^(db\\.query\\.text|db\\.statement)$")
+          - delete_matching_keys(span.attributes, "^(db\\.query\\.text|db\\.statement|db\\.npgsql\\.data_source|db\\.connection_string)$")
 
           # The one conditional pair. url.full and url.query are Class 3 by
           # default and survive only on a call to a known CouchDB host, where
@@ -176,7 +176,7 @@ processors:
           # does not exist.
           - delete_matching_keys(datapoint.attributes, "^(application\\.id|correlation\\.id|session\\.id|causation\\.id|message\\.id|messaging\\.message\\.id|tenant\\.id)$")
           - delete_matching_keys(datapoint.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
-          - delete_matching_keys(datapoint.attributes, "^(db\\.query\\.text|db\\.statement|url\\.full|url\\.query)$")
+          - delete_matching_keys(datapoint.attributes, "^(db\\.query\\.text|db\\.statement|db\\.npgsql\\.data_source|db\\.connection_string|url\\.full|url\\.query)$")
 
     log_statements:
       # Same resource rule again, for the same reason as the metrics copy:
@@ -191,7 +191,7 @@ processors:
           # Carve-outs first, exactly as on spans: these live inside otherwise
           # allowed families, so the keep below would let them through.
           - delete_matching_keys(log.attributes, "^(http\\.request\\.header\\.|http\\.response\\.header\\.|db\\.query\\.parameter\\.)")
-          - delete_matching_keys(log.attributes, "^(db\\.query\\.text|db\\.statement)$")
+          - delete_matching_keys(log.attributes, "^(db\\.query\\.text|db\\.statement|db\\.npgsql\\.data_source|db\\.connection_string)$")
 
           # 🔒 No CouchDB conditional here, deliberately. url.full survives on a
           # span because CouchDbUrlPolicy already replaced the document

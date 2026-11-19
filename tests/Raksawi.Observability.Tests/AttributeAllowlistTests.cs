@@ -68,6 +68,8 @@ public class AttributeAllowlistTests
     [InlineData("db.query.text")]                       // 🔒 Class 3
     [InlineData("db.statement")]                        // 🔒 Class 3, pre-rename form
     [InlineData("db.query.parameter.applicant_id")]     // 🔒 Class 3, row data
+    [InlineData("db.npgsql.data_source")]               // 🔒 connection string (ADR-0042)
+    [InlineData("db.connection_string")]                // 🔒 same, general form
     public void Denies_the_carve_outs_even_though_their_family_is_allowed(string key)
     {
         // Each of these sits inside an allowed family (http.*, db.*). The
