@@ -4,9 +4,9 @@ Date: 2026-11-19
 
 ## Status
 
-Proposed. Needs the plan owner's acceptance, because it deviates from Rev 3
-**D2.1** (default-deny classification) for log attributes. On acceptance it
-joins the deviation list in `README.md`.
+Accepted 2026-11-19 by the plan owner, as written. Not yet implemented.
+Deviates from Rev 3 **D2.1** (default-deny classification) for log attributes,
+listed in `README.md#deviations-from-rev-3`. D6a and D7 stay in the plan.
 
 Amends [ADR-0003](./0003-runtime-allowlist-at-source.md) and
 [ADR-0028](./0028-logs-are-enforced-in-process-on-net10-only.md) for log
@@ -115,7 +115,7 @@ Circle is not regulated and uses the denylist.
   collector's resource allowlist strips the marker before the log rules can
   read it.
 
-## Evidence required before Accepted is implemented
+## Evidence required before this is called implemented
 
 - `test-fast.sh`:
   - a core-only service's log fields leave the process except those on the

@@ -13,7 +13,7 @@ repository owns execution, and records its decisions in
 [`docs/adr/`](./docs/adr/).
 
 Where Rev 3 and an ADR disagree, **Rev 3 wins** unless the ADR explicitly states
-the deviation and its reasoning. Five such deviations exist and are listed in the
+the deviation and its reasoning. Ten such deviations exist and are listed in the
 [ADR index](./docs/adr/README.md#deviations-from-rev-3). Nothing deviates
 silently.
 

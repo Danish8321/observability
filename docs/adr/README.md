@@ -43,7 +43,7 @@ silently.
 | [0040](./0040-alerting-as-code-by-email.md) | Alerting as code, delivered by email (part 1: the platform watching itself) | Accepted — implements 0013 |
 | [0041](./0041-each-identifier-has-its-own-header.md) | Each correlation identifier has its own header | Accepted — amends 0007, deviates from Rev 3 |
 | [0042](./0042-database-instrumentation-is-opt-in-per-database.md) | Database instrumentation is opt-in, one package per database | Accepted — ahead of the neutral plan's D7/D6b order |
-| [0043](./0043-log-fields-are-filtered-by-a-denylist-unless-a-service-opts-into-the-allowlist.md) | Log fields are filtered by a denylist unless a service opts into the allowlist | Proposed — would amend 0003, 0009, 0028 and deviate from Rev 3 |
+| [0043](./0043-log-fields-are-filtered-by-a-denylist-unless-a-service-opts-into-the-allowlist.md) | Log fields are filtered by a denylist unless a service opts into the allowlist | Accepted — amends 0003, 0009, 0028, deviates from Rev 3 |
 
 ## Deviations from Rev 3
 
@@ -79,12 +79,17 @@ are the places this repository knowingly differs, each argued in its own ADR:
   **D2.13** names `X-Correlation-Id`. That header carries the workflow's
   `correlation.id` instead, because 0007 made them two identifiers and one
   header cannot carry both.
+- **0043** — log attributes are filtered by a denylist by default, where
+  **D2.1** specifies default-deny classification. A vocabulary of every field
+  before the first useful log line is an adoption blocker (circle, 57 dropped
+  placeholders). Services handling regulated data opt back into the allowlist
+  with `Governance:Required`; one that forgets fails open.
 
 ## Grouping
 
 **Package shape** — 0001, 0011, 0012, 0017, 0029, 0042
 **Governance and compliance** — 0002, 0003, 0004, 0009, 0015, 0018, 0020, 0025,
-0026, 0028, 0030, 0031
+0026, 0028, 0030, 0031, 0043
 **Telemetry schema** — 0006, 0007, 0008, 0041
 **Runtime behaviour** — 0005, 0010, 0034, 0039
 **Programme** — 0013, 0014, 0016, 0019, 0021, 0022
