@@ -1,4 +1,4 @@
-Status: findings recorded; logs not read back (see 2026-11-17)
+Status: done 2026-11-19 (logs read back via ticket 02; frictions resolved or owned by the plan)
 Priority: high
 
 # Integrate the package into the circle repo and test it end to end
@@ -135,3 +135,23 @@ plan.
 
 **Left running:** circle on `:5068`, `tso-spike-sql`, the `raksawi-probe`
 stack. The circle branch is uncommitted.
+
+### 2026-11-19 — done
+
+The three done-when items:
+
+- **Traces, metrics, logs read back.** Traces and metrics on 2026-11-17 (above);
+  logs on 2026-11-18 once circle used `writeToProviders` with `ClearProviders`
+  (ticket 02). All three by manual query against the local stack; no script
+  in either repo asserts on circle.
+- **Frictions.** 1, Serilog: hit, resolved (ticket 02, recipe in
+  `samples/README.md`). 2, SqlClient: hit, resolved (tickets 03 and 04,
+  ADR-0042; circle on `AddRaksawiSqlClient` since circle `d60e96c`).
+  3, `OTEL_*` precedence: hit, owned by D6b. 4, service-declared keys: hit,
+  owned by D8a/D8b and D9a.
+- **Finding on D6a to D8b:** above, unchanged. Cut down or defer D6a and D7;
+  keep D6b, D8, D9. The decision is the plan owner's.
+
+The 2026-11-17 "left running" note is stale: circle, `tso-spike-sql` and the
+`raksawi-probe` stack are stopped, and the circle branch is committed and
+pushed.
