@@ -155,3 +155,15 @@ The three done-when items:
 The 2026-11-17 "left running" note is stale: circle, `tso-spike-sql` and the
 `raksawi-probe` stack are stopped, and the circle branch is committed and
 pushed.
+
+### 2026-11-19 — friction 3 resolved
+
+The `OTEL_*` environment step of D6b landed (`4315b46`, ADR-0034), and the
+packages were packed as `2.0.0-preview.3`. Circle runs on preview.3. It no
+longer sets an endpoint in code unless `OpenTelemetry:OtlpEndpoint` is
+configured, and the `localhost:4317` default is gone: that is the gRPC port,
+which the package never used. Circle was run with its endpoint only in
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4319`, and Tempo returned its
+traces after the process started, SQL spans included. That check was a manual
+query; no script asserts on circle. Circle sets no sampler in code, so
+`OTEL_TRACES_SAMPLER` now applies to it as well.
