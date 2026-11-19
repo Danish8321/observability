@@ -60,4 +60,18 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "ADR-0001: a service adopting this platform should not be assembling exporters and instrumentation by hand. A pipeline built directly skips the ADR-0003 allowlist entirely.");
+
+    /// <summary>
+    /// A histogram in seconds with no bucket advice gets the SDK's default
+    /// boundaries, which are milliseconds. Every value under five seconds falls
+    /// in the first bucket, so its percentiles are fiction.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SecondsHistogramWithoutAdvice = new(
+        id: "RKS004",
+        title: "Histogram in seconds without bucket advice",
+        messageFormat: "Histogram '{0}' has unit \"s\" but no bucket advice, so it gets the SDK's millisecond boundaries (0, 5, 10 … 10000) and its percentiles are meaningless. Pass advice: new InstrumentAdvice<T> {{ HistogramBucketBoundaries = [...] }}.",
+        category: GovernanceCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Found building the Screening slow alert: screening.duration in seconds arrived with millisecond buckets and p95 read 4.75 s whatever the real duration. ASP.NET Core's and HttpClient's own duration histograms declare advice; a service's own must too.");
 }

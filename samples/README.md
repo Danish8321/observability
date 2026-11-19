@@ -115,7 +115,8 @@ the work silently never completed.**
 conventions' boundaries for seconds (5 ms to 10 s). Without it the SDK's
 defaults apply, made for milliseconds (0, 5, 10, 25 … 10000): every screening
 lands in the first bucket, a healthy p95 reads 4.75 s, and the "Screening
-slow" alert cannot tell healthy from slow.
+slow" alert cannot tell healthy from slow. The analyzer raises RKS004 on a
+`CreateHistogram` with a literal unit `"s"` and no advice.
 
 ### Not-found is not an error
 

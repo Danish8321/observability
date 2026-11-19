@@ -52,7 +52,8 @@ public sealed class TelemetryGovernanceAnalyzer : DiagnosticAnalyzer
         ImmutableArray.Create(
             Diagnostics.UndeclaredAttributeKey,
             Diagnostics.ClassTwoAsMetricDimension,
-            Diagnostics.ExporterConfiguredDirectly);
+            Diagnostics.ExporterConfiguredDirectly,
+            Diagnostics.SecondsHistogramWithoutAdvice);
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -88,6 +89,11 @@ public sealed class TelemetryGovernanceAnalyzer : DiagnosticAnalyzer
                 invocation.Syntax.GetLocation(),
                 method.Name));
             return;
+        }
+
+        if (method.Name == "CreateHistogram" && IsMetricInstrument(method.ContainingType))
+        {
+            ReportSecondsHistogramWithoutAdvice(invocation, context);
         }
 
         if (IsMetricInstrument(method.ContainingType))
@@ -170,6 +176,36 @@ public sealed class TelemetryGovernanceAnalyzer : DiagnosticAnalyzer
             default:
                 return new[] { operation };
         }
+    }
+
+    /// <summary>
+    /// RKS004. Literal unit only, like RKS001. Advice counts as absent when the
+    /// argument was left to its default or passed as a literal null.
+    /// </summary>
+    private static void ReportSecondsHistogramWithoutAdvice(
+        IInvocationOperation invocation,
+        OperationAnalysisContext context)
+    {
+        var unit = invocation.Arguments.FirstOrDefault(argument => argument.Parameter?.Name == "unit");
+        if (!TryGetLiteralKey(unit?.Value, out var unitValue) || unitValue != "s")
+        {
+            return;
+        }
+
+        var advice = invocation.Arguments.FirstOrDefault(argument => argument.Parameter?.Name == "advice");
+        var adviceGiven = advice is not null
+            && advice.ArgumentKind != ArgumentKind.DefaultValue
+            && !(advice.Value.ConstantValue.HasValue && advice.Value.ConstantValue.Value is null);
+        if (adviceGiven)
+        {
+            return;
+        }
+
+        var name = invocation.Arguments.FirstOrDefault(argument => argument.Parameter?.Name == "name");
+        context.ReportDiagnostic(Diagnostic.Create(
+            Diagnostics.SecondsHistogramWithoutAdvice,
+            invocation.Syntax.GetLocation(),
+            TryGetLiteralKey(name?.Value, out var nameValue) ? nameValue : "(computed name)"));
     }
 
     private static bool TryGetLiteralKey(IOperation? operation, out string key)

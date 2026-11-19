@@ -150,6 +150,34 @@ public sealed class TelemetryGovernanceAnalyzerTests
         Assert.Empty(Diagnose("Pipeline.AddOtlpExporter();"));
     }
 
+    [Theory]
+    [InlineData("""new Meter("m").CreateHistogram<double>("work.duration", unit: "s");""")]
+    [InlineData("""new Meter("m").CreateHistogram<double>("work.duration", "s", "How long");""")]
+    [InlineData("""new Meter("m").CreateHistogram<double>("work.duration", "s", "How long", null, advice: null);""")]
+    public void Seconds_histogram_without_bucket_advice_raises_RKS004(string body)
+    {
+        // The SDK's default boundaries (0, 5, 10 … 10000) are milliseconds, so
+        // every sub-five-second value lands in the first bucket and p95 reads
+        // 4.75 s whatever the real duration (histogram-buckets issue 01).
+        Assert.Equal(["RKS004"], Diagnose(body));
+    }
+
+    [Theory]
+    [InlineData("""new Meter("m").CreateHistogram<double>("work.duration", "s", "How long", null, new InstrumentAdvice<double> { HistogramBucketBoundaries = [0.1, 1, 10] });""")]
+    [InlineData("""new Meter("m").CreateHistogram<double>("work.duration", unit: "ms");""")]
+    [InlineData("""new Meter("m").CreateHistogram<double>("work.duration");""")]
+    public void Histogram_with_advice_or_another_unit_raises_nothing(string body)
+    {
+        Assert.Empty(Diagnose(body));
+    }
+
+    [Fact]
+    public void Non_literal_unit_raises_nothing()
+    {
+        // Literal-only, like RKS001: a guessed unit is a false positive waiting.
+        Assert.Empty(Diagnose("""new Meter("m").CreateHistogram<double>("work.duration", unit: System.Environment.GetEnvironmentVariable("U"));"""));
+    }
+
     /// <summary>
     /// Compiles <paramref name="body"/> inside a method that already has an
     /// <c>Activity</c> and a <c>Counter</c> in scope, and returns the ids of

@@ -346,6 +346,7 @@ Three diagnostics exist:
 | **RKS001** | Warning | Undeclared attribute key. It will be dropped. |
 | **RKS002** | **Error** | Class 2 identifier used as a metric dimension. Unbounded cardinality degrades the store for every other service, so this one is not a judgement call. |
 | **RKS003** | Warning | Exporter configured by hand. That pipeline has no allowlist processor and no governed defaults. |
+| **RKS004** | Warning | Histogram with unit `s` and no bucket advice. It gets the SDK's millisecond boundaries and its percentiles are meaningless. Pass `HistogramBucketBoundaries` advice (see `samples/README.md`). |
 
 Do not suppress any of them. RKS001 is not protecting a style rule; it is
 telling you the data will not arrive.
