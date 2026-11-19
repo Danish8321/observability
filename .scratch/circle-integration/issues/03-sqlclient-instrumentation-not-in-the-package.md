@@ -60,3 +60,15 @@ Postgres as its own ticket (issue 04).
 
 Not done: circle still adds SqlClient by hand. Moving it onto
 `AddRaksawiSqlClient()` needs a repacked preview, and that has not been done.
+
+### 2026-11-19 — circle moved onto the package
+
+Core and SqlClient packed as `2.0.0-preview.2` into circle's local feed
+(`-p:VersionSuffix=preview.2` on the command line; `Directory.Build.props`
+still says preview.1). circle calls `builder.AddRaksawiSqlClient()` and no
+longer references the instrumentation package directly; its central
+transitive pin keeps `OpenTelemetry.Instrumentation.SqlClient` at 1.19.0.
+Proof, against the local stack: circle's `check.sh` and `test-fast.sh` pass,
+and 50 SQL Server client traces from the rebuilt process reached Tempo
+(`db.system.name`, `db.namespace`, `db.query.summary`), none with
+`db.query.text` or `db.statement`.
