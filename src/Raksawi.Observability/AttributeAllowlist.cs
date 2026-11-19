@@ -94,6 +94,31 @@ internal sealed class AttributeAllowlist
     }
 
     /// <summary>
+    /// True if any assembly this application references carries
+    /// <see cref="GovernanceRequiredAttribute"/>. Same walk as the keys, so a
+    /// referenced but not yet used pack still counts.
+    /// </summary>
+    internal static bool AnyAssemblyRequiresGovernance()
+    {
+        foreach (var assembly in CandidateAssemblies())
+        {
+            try
+            {
+                if (assembly.IsDefined(typeof(GovernanceRequiredAttribute), inherit: false))
+                {
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                // As for keys: an unreadable assembly must not fail startup.
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Every assembly that could carry a declaration: those already loaded,
     /// plus the transitive references of the entry assembly, loaded on purpose.
     /// </summary>

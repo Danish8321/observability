@@ -5,7 +5,8 @@ overriding the one before (ADR-0034):
 
 1. Defaults.
 2. The standard `OTEL_*` variables below.
-3. The code lambda passed to `AddRaksawiObservability`.
+3. The configuration keys below (ADR-0043).
+4. The code lambda passed to `AddRaksawiObservability`.
 
 Code wins. To let the environment decide something, don't set it in code. The
 exception is `OTEL_SDK_DISABLED=true`: nothing in code can turn telemetry back
@@ -35,6 +36,20 @@ Rules for every variable:
 - A `SamplingRatio` set in code is always parent-based
   (`parentbased_traceidratio`), even when the environment named a sampler that
   ignores the parent.
+
+## Configuration keys
+
+Read from `IConfiguration` after the `OTEL_*` variables and before code, so
+code still wins (ADR-0043). In environment variables, `:` is `__`.
+
+| Key | Sets | Accepted values |
+|---|---|---|
+| `Governance:Required` | `GovernanceRequired`. `true` keeps the log allowlist and tags the resource `raksawi.governance=required`; `false` filters log fields by the denylist | `true` or `false`, any case. Anything else stops startup naming the key |
+| `Observability:Logs:DeniedKeys` | `DeniedLogKeys`, this service's additions to the estate log denylist (`docs/allowlist.md`) | an array of names, e.g. `Observability__Logs__DeniedKeys__0=RawStatus` |
+
+A service referencing a pack marked `[assembly: GovernanceRequired]`, such as
+`Raksawi.Observability.Kyc`, keeps the allowlist whatever these keys or its
+code say.
 
 ## Not supported
 

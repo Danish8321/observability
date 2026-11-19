@@ -47,7 +47,10 @@ if ! $COMPOSE up -d --wait --wait-timeout 300 >/dev/null 2>&1; then
 fi
 
 now="$(date +%s)000000000"
-resource='{"attributes":[{"key":"service.name","value":{"stringValue":"stack-check"}}]}'
+# Tagged as a governed service, so the canary below meets the log allowlist
+# (ADR-0043). The open record further down is sent untagged.
+resource='{"attributes":[{"key":"service.name","value":{"stringValue":"stack-check"}},{"key":"raksawi.governance","value":{"stringValue":"required"}}]}'
+open_resource='{"attributes":[{"key":"service.name","value":{"stringValue":"stack-check-open"}}]}'
 
 # The collector's receiver is up once compose reports it running, but its
 # pipelines may not be; retry the first send rather than sleeping.
@@ -72,6 +75,15 @@ send logs '{"resourceLogs":[{"resource":'"$resource"',"scopeLogs":[{"logRecords"
   "attributes":[
     {"key":"correlation.id","value":{"stringValue":"'"$RUN"'"}},
     {"key":"applicantIdentifier","value":{"stringValue":"'"$CANARY"'"}}]}]}]}]}'
+
+# A service with none of our code and no tag: the collector is its only
+# filter, and that filter is the denylist (ADR-0043).
+send logs '{"resourceLogs":[{"resource":'"$open_resource"',"scopeLogs":[{"logRecords":[{
+  "timeUnixNano":"'"$now"'","severityText":"Information",
+  "body":{"stringValue":"open check '"$RUN"'"},
+  "attributes":[
+    {"key":"AccountId","value":{"stringValue":"acct-'"$RUN"'"}},
+    {"key":"Password","value":{"stringValue":"'"$CANARY"'-pw"}}]}]}]}]}'
 
 send metrics '{"resourceMetrics":[{"resource":'"$resource"',"scopeMetrics":[{"metrics":[{
   "name":"stack.check.probe",
@@ -111,6 +123,20 @@ if loki="$(poll Loki "http://localhost:3100/loki/api/v1/query_range?start=$start
     case "$loki" in
         *"$CANARY"*) echo "  FAILED  LEAKED  applicantIdentifier reached Loki" >&2; failed=1 ;;
         *) echo "  ok      dropped applicantIdentifier before Loki" ;;
+    esac
+else
+    failed=1
+fi
+
+if open="$(poll Loki "http://localhost:3100/loki/api/v1/query_range?start=$start" \
+        "query={service_name=\"stack-check-open\"} |= \"$RUN\"" "open check $RUN")"; then
+    case "$open" in
+        *"acct-$RUN"*) echo "  ok      kept    an undeclared field from an untagged service" ;;
+        *) echo "  FAILED  missing an undeclared field from an untagged service" >&2; failed=1 ;;
+    esac
+    case "$open" in
+        *"$CANARY-pw"*) echo "  FAILED  LEAKED  a denylisted field reached Loki" >&2; failed=1 ;;
+        *) echo "  ok      dropped a denylisted field before Loki" ;;
     esac
 else
     failed=1

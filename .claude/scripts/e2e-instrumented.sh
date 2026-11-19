@@ -299,6 +299,7 @@ dump_received
 while ! grep -q 'screening.applications.screened' "$received" 2>/dev/null \
     || ! grep -q 'kyc.applications.submitted process' "$received" 2>/dev/null \
     || ! grep -q 'Screened {application.id}' "$received" 2>/dev/null \
+    || ! grep -q 'Balance read for {AccountId}' "$received" 2>/dev/null \
     || ! grep -q 'gnatsd_varz_connections' "$received" 2>/dev/null \
     || ! grep -q '"ledger-api"' "$received" 2>/dev/null \
     || ! grep -q '"payments-api"' "$received" 2>/dev/null \
@@ -417,10 +418,15 @@ fi
 # record, which is the whole rule in one assertion pair.
 present 'Screened {application.id}' 'the worker log record'
 
-# Scoped to the export request carrying that record, the way the metric
-# dimension check above is scoped: application.id is legitimately present on a
-# span, so a whole-file grep would prove nothing about the log.
-logline=$(grep 'Screened {application.id}' "$received")
+# Scoped to the one service's records carrying that message: application.id
+# is legitimately present on a span, so a whole-file grep would prove nothing
+# about the log. One export request batches several services, so its line is
+# split at each resource and only the matching one is kept.
+resource_of() {
+    sed 's/{"resource":/\
+&/g' "$received" | grep "$1"
+}
+logline=$(resource_of 'Screened {application.id}')
 
 if echo "$logline" | grep -q '"application.id"'; then
     echo "  ok      present a declared Class 2 key on a log"
@@ -434,6 +440,41 @@ if echo "$logline" | grep -q '"Outcome"'; then
     failed=1
 else
     echo "  ok      absent  an undeclared log property"
+fi
+
+# 🔒 ADR-0043. The worker carries the KYC pack, so its resource says it kept
+# the allowlist — the tag the collector's log keep is conditioned on.
+if echo "$logline" | grep -q '"raksawi.governance"'; then
+    echo "  ok      present the governance tag on a KYC service's resource"
+else
+    echo "  FAILED  missing the governance tag on a KYC service's resource" >&2
+    failed=1
+fi
+
+# The ledger is not KYC: denylist. Its own field arrives undeclared, through
+# the package and the collector both; a denylisted name does not.
+present 'Balance read for {AccountId}' 'the ledger log record'
+ledgerline=$(resource_of 'Balance read for {AccountId}')
+
+if echo "$ledgerline" | grep -q '"AccountId"'; then
+    echo "  ok      present an undeclared field from a service on the denylist"
+else
+    echo "  FAILED  missing an undeclared field from a service on the denylist" >&2
+    failed=1
+fi
+
+if echo "$ledgerline" | grep -q '"Email"\|statements@example.test'; then
+    echo "  FAILED  LEAKED  a denylisted log field" >&2
+    failed=1
+else
+    echo "  ok      absent  a denylisted log field"
+fi
+
+if echo "$ledgerline" | grep -q '"raksawi.governance"'; then
+    echo "  FAILED  a service on the denylist carries the governance tag" >&2
+    failed=1
+else
+    echo "  ok      absent  the governance tag on a service on the denylist"
 fi
 
 # 🔒 The NATS scrape (ADR-0030). Broker health cannot come from instrumentation

@@ -332,6 +332,48 @@ public sealed class CollectorAllowlistContractTests
     }
 
     [Fact]
+    public void The_log_keep_applies_only_to_services_that_opted_in()
+    {
+        // ADR-0043: the allowlist for a resource tagged by Governance:Required,
+        // the denylist for everything else.
+        Assert.EndsWith(
+            "where resource.attributes[\"raksawi.governance\"] == \"required\"",
+            LogKeep().TrimEnd());
+    }
+
+    [Theory]
+    [MemberData(nameof(DeniedLogNames))]
+    public void Every_estate_log_denylist_name_is_denied_by_the_collector(string name)
+    {
+        Assert.Matches(CollectorLogDenylist(), name);
+        Assert.Matches(CollectorLogDenylist(), name.ToUpperInvariant());
+    }
+
+    [Theory]
+    // Spellings a service actually uses, on both sides of the contract.
+    [InlineData("To", true)]
+    [InlineData("Body", true)]
+    [InlineData("api_key", true)]
+    [InlineData("ApiKey", true)]
+    [InlineData("Set-Cookie", true)]
+    [InlineData("EmailAddress", true)]
+    [InlineData("e.mail", true)]
+    [InlineData("client_secret", true)]
+    [InlineData("access_token", true)]
+    [InlineData("ConnectionString", true)]
+    [InlineData("AccountId", false)]
+    [InlineData("EntryId", false)]
+    [InlineData("Topic", false)]
+    [InlineData("Detail", false)]
+    [InlineData("tokens", false)]
+    [InlineData("ToAccount", false)]
+    public void The_collector_and_the_package_agree_on_the_log_denylist(string name, bool denied)
+    {
+        Assert.Equal(denied, CollectorLogDenylist().IsMatch(name));
+        Assert.Equal(denied, AllowlistRules.IsDeniedOnLog(name));
+    }
+
+    [Fact]
     public void Collector_fails_closed_on_an_erroring_statement()
     {
         // silent or ignore would pass unfiltered attributes through to storage.
@@ -361,6 +403,22 @@ public sealed class CollectorAllowlistContractTests
 
     public static TheoryData<string> DeniedResourceKeys() => Load(AllowlistRules.DeniedResourceKeys);
 
+    public static TheoryData<string> DeniedLogNames() => Load(AllowlistRules.DeniedLogNames);
+
+    /// <summary>
+    /// The collector's case-insensitive log deny, compiled as .NET reads it.
+    /// OTTL string escapes are undone first; the pattern uses nothing on which
+    /// RE2 and .NET differ.
+    /// </summary>
+    private static System.Text.RegularExpressions.Regex CollectorLogDenylist()
+    {
+        var line = Assert.Single(LogLines("delete_matching_keys"), l => l.Contains("(?i)", StringComparison.Ordinal));
+        var start = line.IndexOf('"', StringComparison.Ordinal) + 1;
+        var pattern = line[start..line.LastIndexOf('"')].Replace("\\\\", "\\", StringComparison.Ordinal);
+
+        return new System.Text.RegularExpressions.Regex(pattern);
+    }
+
     private static TheoryData<string> Load(string[] values)
     {
         var data = new TheoryData<string>();
@@ -377,7 +435,7 @@ public sealed class CollectorAllowlistContractTests
     private static string Escaped(string key) => key.Replace(".", "\\\\.", StringComparison.Ordinal);
 
     private static string KeepExpression() =>
-        string.Join('\n', Lines("keep_matching_keys").Where(line => !line.Contains("resource.attributes", StringComparison.Ordinal)));
+        string.Join('\n', Lines("keep_matching_keys").Where(line => !line.Contains(ResourceStatement, StringComparison.Ordinal)));
 
     private static string ResourceKeep() => string.Join('\n', ResourceLines("keep_matching_keys"));
 
@@ -387,7 +445,7 @@ public sealed class CollectorAllowlistContractTests
     private static IEnumerable<string> LogLines(string containing) =>
         Section("log_statements", "  resource:").Split('\n')
             .Where(line => line.Contains(containing, StringComparison.Ordinal)
-                && !line.Contains("resource.attributes", StringComparison.Ordinal));
+                && !line.Contains(ResourceStatement, StringComparison.Ordinal));
 
     /// <summary>
     /// One receiver's configuration, ended by the next entry at its own indent.
@@ -477,7 +535,13 @@ public sealed class CollectorAllowlistContractTests
             .ToArray()[^1];
 
     private static IEnumerable<string> ResourceLines(string containing) =>
-        Lines(containing).Where(line => line.Contains("resource.attributes", StringComparison.Ordinal));
+        Lines(containing).Where(line => line.Contains(ResourceStatement, StringComparison.Ordinal));
+
+    /// <summary>
+    /// A statement acting on the resource. Not just any mention of
+    /// <c>resource.attributes</c>: the log keep reads one in its condition.
+    /// </summary>
+    private const string ResourceStatement = "_keys(resource.attributes";
 
     private static IEnumerable<string> Lines(string containing) =>
         Config.Split('\n').Where(line => line.Contains(containing, StringComparison.Ordinal));

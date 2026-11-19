@@ -124,7 +124,7 @@ processors:
       - context: resource
         statements:
           - delete_matching_keys(resource.attributes, "^process\\.(command_line|command_args|owner)$")
-          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)")
+          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)|^raksawi\\.governance$")
 
       - context: span
         statements:
@@ -161,7 +161,7 @@ processors:
       - context: resource
         statements:
           - delete_matching_keys(resource.attributes, "^process\\.(command_line|command_args|owner)$")
-          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)")
+          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)|^raksawi\\.governance$")
 
       - context: datapoint
         statements:
@@ -184,7 +184,7 @@ processors:
       - context: resource
         statements:
           - delete_matching_keys(resource.attributes, "^process\\.(command_line|command_args|owner)$")
-          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)")
+          - keep_matching_keys(resource.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|telemetry\\.distro\\.|process\\.|host\\.|os\\.|container\\.|k8s\\.)|^raksawi\\.governance$")
 
       - context: log
         statements:
@@ -200,11 +200,18 @@ processors:
           # exemption, because the precondition for the exemption is absent.
           - delete_matching_keys(log.attributes, "^url\\.(full|query)$")
 
-          # Default deny, the same families, declared Class 2 keys and
+          # 🔒 The estate log denylist (ADR-0043), for every service. On a
+          # service that kept the allowlist the keep below removes these
+          # anyway; on every other service this is the whole name rule. Case
+          # and the separators _ - . are ignored, as AllowlistRules does.
+          - delete_matching_keys(log.attributes, "(?i)^(body|to|from|cc|bcc|recipient|e[-_.]*mail([-_.]*address)?|password|passwd|secret|client[-_.]*secret|((access|refresh|id)[-_.]*)?token|api[-_.]*key|authorization|(set[-_.]*)?cookie|connection[-_.]*string)$")
+
+          # The allowlist, only for a service that opted in with
+          # Governance:Required (ADR-0043). Default deny, the same families, declared Class 2 keys and
           # enumerated messaging keys the span keep uses — Class 2 is permitted
           # on spans AND logs (Rev 3 D2.1), and a family present on one and
           # missing from the other is drift either way.
-          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$|^(screening\\.abandoned|screening\\.abandon_reason|screening\\.outcome|screening\\.provider|couchdb\\.database|couchdb\\.conflict|application\\.found|application\\.status)$")
+          - keep_matching_keys(log.attributes, "^(service\\.|deployment\\.|vcs\\.|cicd\\.|telemetry\\.sdk\\.|process\\.|host\\.|http\\.|url\\.|server\\.|client\\.|network\\.|db\\.|code\\.|exception\\.|user_agent\\.)|^(correlation\\.id|session\\.id|message\\.id|causation\\.id|application\\.id)$|^(messaging\\.system|messaging\\.operation|messaging\\.destination\\.name|messaging\\.destination\\.template|messaging\\.destination\\.temporary|messaging\\.destination_publish\\.name|messaging\\.nats\\.message\\.subject|messaging\\.message\\.id|messaging\\.message\\.body\\.size|messaging\\.message\\.envelope\\.size|messaging\\.client_id|messaging\\.attempt|messaging\\.consumer\\.group\\.name)$|^(screening\\.abandoned|screening\\.abandon_reason|screening\\.outcome|screening\\.provider|couchdb\\.database|couchdb\\.conflict|application\\.found|application\\.status)$") where resource.attributes["raksawi.governance"] == "required"
 
   # Upsert: the gateway, not the service, says which environment it serves.
   resource:

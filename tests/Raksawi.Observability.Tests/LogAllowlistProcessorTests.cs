@@ -69,17 +69,99 @@ public sealed class LogAllowlistProcessorTests
         Assert.DoesNotContain(attributes, a => a.Key == "applicantIdentifier");
     }
 
+    // ADR-0043: a service that has not opted into governance.
+
+    [Fact]
+    public void Without_governance_an_undeclared_property_survives()
+    {
+        // What circle needed: its own fields, with no vocabulary declared.
+        var attributes = Log(
+            logger => logger.LogInformation("Posted {EntryId} to {AccountId}", "e-1", "acc-1"),
+            LogAllowlistProcessor.ForDenylist([]));
+
+        Assert.Contains(attributes, a => a.Key == "EntryId");
+        Assert.Contains(attributes, a => a.Key == "AccountId");
+    }
+
+    [Theory]
+    [InlineData("To")]
+    [InlineData("Body")]
+    [InlineData("api_key")]
+    [InlineData("Set-Cookie")]
+    public void Without_governance_an_estate_denylisted_name_is_dropped(string name)
+    {
+        var attributes = Log(
+            logger => logger.LogInformation("Sent {" + name + "} for {AccountId}", "x", "acc-1"),
+            LogAllowlistProcessor.ForDenylist([]));
+
+        Assert.DoesNotContain(attributes, a => a.Key == name);
+        Assert.Contains(attributes, a => a.Key == "AccountId");
+    }
+
+    [Fact]
+    public void Without_governance_the_services_own_denied_keys_are_dropped_ignoring_case_and_separators()
+    {
+        var attributes = Log(
+            logger => logger.LogInformation("Provider said {RawStatus} for {AccountId}", "x", "acc-1"),
+            LogAllowlistProcessor.ForDenylist(["raw_status"]));
+
+        Assert.DoesNotContain(attributes, a => a.Key == "RawStatus");
+        Assert.Contains(attributes, a => a.Key == "AccountId");
+    }
+
+    [Theory]
+    [InlineData("db.statement")]
+    [InlineData("db.query.text")]
+    [InlineData("url.full")]
+    [InlineData("http.request.header.authorization")]
+    public void Without_governance_the_carve_outs_still_hold(string key)
+    {
+        var attributes = Log(
+            logger => logger.LogInformation("Value {" + key + "}", "x"),
+            LogAllowlistProcessor.ForDenylist([]));
+
+        Assert.DoesNotContain(attributes, a => a.Key == key);
+    }
+
+    [Fact]
+    public void Governance_required_keeps_the_allowlist()
+    {
+        var options = new RaksawiObservabilityOptions { GovernanceRequired = true };
+
+        var attributes = Log(
+            logger => logger.LogInformation("Posted {EntryId}", "e-1"),
+            LogAllowlistProcessor.For(options));
+
+        Assert.DoesNotContain(attributes, a => a.Key == "EntryId");
+    }
+
+    [Fact]
+    public void Governance_not_required_uses_the_options_denied_keys()
+    {
+        var options = new RaksawiObservabilityOptions();
+        options.DeniedLogKeys.Add("ProviderDetail");
+
+        var attributes = Log(
+            logger => logger.LogInformation("{ProviderDetail} for {EntryId}", "x", "e-1"),
+            LogAllowlistProcessor.For(options));
+
+        Assert.DoesNotContain(attributes, a => a.Key == "ProviderDetail");
+        Assert.Contains(attributes, a => a.Key == "EntryId");
+    }
+
     /// <summary>
-    /// Writes one log record through a provider carrying the allowlist
-    /// processor, and returns the attributes as the exporter saw them.
+    /// Writes one log record through a provider carrying the filter (the
+    /// allowlist over <c>application.id</c> unless another is given), and
+    /// returns the attributes as the exporter saw them.
     /// </summary>
-    private static List<KeyValuePair<string, object?>> Log(Action<ILogger> write)
+    private static List<KeyValuePair<string, object?>> Log(
+        Action<ILogger> write, LogAllowlistProcessor? filter = null)
     {
         var exported = new List<KeyValuePair<string, object?>>();
 
         using (var factory = LoggerFactory.Create(builder => builder.AddOpenTelemetry(options =>
         {
-            options.AddProcessor(new LogAllowlistProcessor(
+            options.AddProcessor(filter ?? new LogAllowlistProcessor(
                 AttributeAllowlist.ForDeclaredKeys("application.id")));
 
             // Simple, not batching: a batched record is exported after the test

@@ -117,6 +117,10 @@ internal static class AllowlistRules
         // Where it ran. Emitted by every SDK and by the 4.8 agent.
         "telemetry.sdk.", "telemetry.distro.", "process.", "host.", "os.",
         "container.", "k8s.",
+
+        // One key, not a family: the opt-in the collector's log rules read
+        // (ADR-0043). Stripped here, every service would get the denylist.
+        "raksawi.governance",
     ];
 
     /// <summary>
@@ -178,6 +182,107 @@ internal static class AllowlistRules
         // identity as personal data, and it is not a diagnostic input.
         "process.owner",
     ];
+
+    /// <summary>
+    /// 🔒 The estate log denylist (ADR-0043): field names removed from every
+    /// log record of a service that has not opted into the allowlist. Stored
+    /// in <see cref="CanonicalLogName"/> form, so <c>api_key</c>,
+    /// <c>ApiKey</c> and <c>api-key</c> are one entry.
+    /// </summary>
+    /// <remarks>
+    /// Names, not meanings: <c>Detail</c> holding an email passes this list.
+    /// The collector's value patterns are what catch that (ADR-0043). Each
+    /// entry must also be matched by the collector's log deny, which
+    /// <c>CollectorAllowlistContractTests</c> checks.
+    /// </remarks>
+    internal static readonly string[] DeniedLogNames =
+    [
+        // Free text and message content.
+        "body",
+
+        // Addressing. Email addresses and the like are personal data.
+        "to", "from", "cc", "bcc", "recipient", "email", "emailaddress",
+
+        // Credentials. Class 4.
+        "password", "passwd", "secret", "clientsecret",
+        "token", "accesstoken", "refreshtoken", "idtoken",
+        "apikey", "authorization", "cookie", "setcookie", "connectionstring",
+    ];
+
+    /// <summary>
+    /// A log field name lowercased with <c>_</c>, <c>-</c> and <c>.</c>
+    /// removed — the form <see cref="DeniedLogNames"/> is stored in. The
+    /// collector's regex makes the same three separators optional.
+    /// </summary>
+    internal static string CanonicalLogName(string key)
+    {
+        var canonical = new System.Text.StringBuilder(key.Length);
+
+        foreach (var c in key)
+        {
+            if (c is not ('_' or '-' or '.'))
+            {
+                _ = canonical.Append(char.ToLowerInvariant(c));
+            }
+        }
+
+        return canonical.ToString();
+    }
+
+    /// <summary>
+    /// Verdict for a log field when the service is on the denylist: the
+    /// carve-outs still hold, and the estate denylist is added to them.
+    /// </summary>
+    internal static bool IsDeniedOnLog(string key)
+    {
+        // A log record is never a CouchDB span, so the conditional pair is
+        // denied outright here, as it is by the allowlist.
+        if (IsCarveOut(key))
+        {
+            return true;
+        }
+
+        var canonical = CanonicalLogName(key);
+
+        foreach (var denied in DeniedLogNames)
+        {
+            if (string.Equals(canonical, denied, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsCarveOut(string key)
+    {
+        foreach (var denied in DeniedKeys)
+        {
+            if (string.Equals(key, denied, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        foreach (var prefix in DeniedPrefixes)
+        {
+            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        foreach (var conditional in CouchDbOnlyKeys)
+        {
+            if (string.Equals(key, conditional, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Class 2 keys that must never appear as a metric dimension (Rev 3 D2.1

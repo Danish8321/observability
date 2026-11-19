@@ -49,6 +49,10 @@ internal static class ServiceIdentity
         ".NET Framework this is expected at startup; if it appears after " +
         "an Activity has already been created, traces have already split.";
 
+    internal const string GovernanceAttribute = "raksawi.governance";
+
+    internal const string GovernanceRequiredValue = "required";
+
     public static ResourceBuilder BuildResource(RaksawiObservabilityOptions options)
     {
         var attributes = new List<KeyValuePair<string, object>>
@@ -56,6 +60,13 @@ internal static class ServiceIdentity
             new("service.namespace", options.ServiceNamespace),
             new("service.instance.id", ResolveInstanceId(options)),
         };
+
+        // The collector applies the log allowlist only to resources carrying
+        // this (ADR-0043); everyone else gets the denylist.
+        if (options.GovernanceRequired)
+        {
+            attributes.Add(new(GovernanceAttribute, GovernanceRequiredValue));
+        }
 
         return ResourceBuilder.CreateDefault()
             .AddService(serviceName: options.ServiceName)

@@ -30,8 +30,18 @@ principle, not the name of any package.
 
 ## Governance
 
-**Allowlist** — the set of attribute keys a service may attach to spans and
-logs. Anything absent from it is dropped, not flagged. Default deny.
+**Allowlist** — the set of attribute keys a service may attach to spans, and
+to logs if the service is governed. Anything absent from it is dropped, not
+flagged. Default deny.
+
+**Governed service** — one that set `Governance:Required=true` or carries a
+pack that requires it, such as the KYC pack. Its logs keep the allowlist, and
+its resource carries `raksawi.governance=required` (ADR-0043).
+
+**Log denylist** — what filters the log fields of every service that isn't
+governed: the carve-outs, the estate's risky names (`to`, `body`, `password`…)
+and the service's own `DeniedKeys`. Everything else is kept. Default allow,
+for logs only.
 
 **Family** — a prefix allowed wholesale, such as `http.*`. The allowlist is
 expressed as families rather than individual keys, so that code paths nobody

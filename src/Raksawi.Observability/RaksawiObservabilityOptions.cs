@@ -93,6 +93,24 @@ public sealed class RaksawiObservabilityOptions
     public IList<string> Meters { get; } = new List<string>();
 
     /// <summary>
+    /// True for a service handling regulated customer data: its log fields
+    /// keep the allowlist, and its resource is tagged
+    /// <c>raksawi.governance=required</c> so the collector applies it too.
+    /// False, the default, filters log fields by the denylist (ADR-0043).
+    /// Configuration key <c>Governance:Required</c>. A policy pack carrying
+    /// <see cref="GovernanceRequiredAttribute"/> forces it on.
+    /// </summary>
+    public bool GovernanceRequired { get; set; }
+
+    /// <summary>
+    /// Log field names this service removes on top of the estate denylist,
+    /// matched ignoring case, <c>_</c>, <c>-</c> and <c>.</c>. Applied only
+    /// in-process, and only when <see cref="GovernanceRequired"/> is false.
+    /// Configuration key <c>Observability:Logs:DeniedKeys</c> (ADR-0043).
+    /// </summary>
+    public IList<string> DeniedLogKeys { get; } = new List<string>();
+
+    /// <summary>
     /// NATS.Net emits publish and subscribe spans and propagates trace context
     /// through message headers on its own, from version 3.0.1. Nothing injects
     /// traceparent by hand, and no custom message counters are needed.

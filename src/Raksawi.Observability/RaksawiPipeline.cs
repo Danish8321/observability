@@ -111,7 +111,7 @@ internal static class RaksawiPipeline
         ResourceBuilder resource) =>
         builder
             .SetResourceBuilder(resource)
-            .AddProcessor(new LogAllowlistProcessor(AttributeAllowlist.FromLoadedAssemblies()))
+            .AddProcessor(LogAllowlistProcessor.For(options))
             .AddOtlpExporter(otlp => ConfigureOtlp(otlp, options, "v1/logs"));
 
     /// <summary>The metric exporter. There is no allowlist processor for metrics.</summary>

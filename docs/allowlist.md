@@ -122,6 +122,13 @@ review rather than as telemetry that quietly changes shape.
 
 ## Allowed families — on a log record
 
+**Only for a service that opted into governance** (ADR-0043): it set
+`Governance:Required=true`, or it carries a pack marked
+`[assembly: GovernanceRequired]`, as the KYC pack is. Its resource is tagged
+`raksawi.governance=required`, and the collector applies this list only to
+records carrying that tag. Every other service's log fields go through the
+[log denylist](#-log-denylist--every-other-service) instead.
+
 The span list above, unchanged: Rev 3 **D2.1** permits Class 2 on spans *and*
 logs, so a narrower log list would contradict the policy it implements.
 Enforced in-process by `LogAllowlistProcessor` on .NET 10 and by the collector's
@@ -134,15 +141,37 @@ Two differences, both tightenings:
   denied outright. Those keys survive on a CouchDB span only because
   `CouchDbUrlPolicy` rewrote the document identifier first, and nothing rewrites
   a URL a service wrote into a log. No precondition, no exemption.
-- **A structured log property is an attribute key.** `LogInformation("Screened
-  {ApplicationId}", id)` emits an attribute named `ApplicationId`, which matches
-  no family and no declaration and is dropped. Log properties must be named in
+- **A structured log property is an attribute key.** For a governed service,
+  `LogInformation("Screened {ApplicationId}", id)` emits an attribute named
+  `ApplicationId`, which matches no family and no declaration and is dropped. Log properties must be named in
   the estate vocabulary — `{application.id}` — or they do not survive export.
   The dropped-key metric carries a `telemetry.signal` dimension so this is
   visible rather than mysterious.
 
 The log **body** is not filtered by key and cannot be; that is ADR-0004's
 interpolation ban and the collector's pattern scan, not this list.
+
+## 🔒 Log denylist — every other service
+
+A service that has not opted into governance keeps every log field except
+these (ADR-0043):
+
+- **The carve-outs** below, and the `url.full`/`url.query` pair, exactly as
+  for a governed service.
+- **The estate denylist**, matched ignoring case and the separators `_`, `-`
+  and `.`, so `api_key`, `ApiKey` and `api-key` are one entry:
+  `body`, `to`, `from`, `cc`, `bcc`, `recipient`, `email`, `emailaddress`,
+  `password`, `passwd`, `secret`, `clientsecret`, `token`, `accesstoken`,
+  `refreshtoken`, `idtoken`, `apikey`, `authorization`, `cookie`, `setcookie`,
+  `connectionstring`. Code side `AllowlistRules.DeniedLogNames`; collector side
+  the `(?i)` delete in `log_statements`. `contract.sh` checks the two agree.
+- **The service's own names**, from `Observability:Logs:DeniedKeys`, matched
+  the same way. Enforced in-process only, until the collector policy generator
+  (D9a) emits them. An entry needs no signing: it can only remove data.
+
+These are names, not meanings. A field called `Detail` holding an email
+address passes. The collector's value patterns (ADR-0043, slice 2) are what
+catch that.
 
 ## Allowed families — on a resource
 

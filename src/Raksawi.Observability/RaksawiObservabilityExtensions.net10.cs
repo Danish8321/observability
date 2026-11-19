@@ -48,7 +48,16 @@ public static class RaksawiObservabilityExtensions
             IsDevelopment = builder.Environment.IsDevelopment(),
         };
         OtelEnvironment.Apply(options, environment);
+        ObservabilityConfiguration.Apply(options, builder.Configuration);
         configure(options);
+
+        // After code, so code cannot turn it off: a regulated pack's presence
+        // is not something one service's Program.cs gets to overrule.
+        if (AttributeAllowlist.AnyAssemblyRequiresGovernance())
+        {
+            options.GovernanceRequired = true;
+        }
+
         options.Validate();
 
         // No logger exists yet — the host is not built — so the warning is

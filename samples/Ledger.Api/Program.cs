@@ -22,8 +22,13 @@ var app = builder.Build();
 
 // No table: the query needs no schema, so the sample needs no migration. The
 // statement text is what the allowlist must keep out of the span.
-app.MapGet("/balances/{account}", async (string account, CancellationToken cancellationToken) =>
+app.MapGet("/balances/{account}", async (string account, ILogger<Program> logger, CancellationToken cancellationToken) =>
 {
+    // Not a KYC service, so its log fields are filtered by the denylist
+    // (ADR-0043): AccountId arrives with nothing declared, and Email, an
+    // estate-denylisted name, is dropped before it leaves the process.
+    logger.LogInformation("Balance read for {AccountId}; statement to {Email}", account, "statements@example.test");
+
     await using var connection = new SqlConnection(connectionString);
     await connection.OpenAsync(cancellationToken);
     await using var command = new SqlCommand("SELECT CAST(0 AS decimal(18,2)) AS balance WHERE @account IS NOT NULL", connection);

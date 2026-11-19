@@ -4,12 +4,18 @@ using OpenTelemetry.Logs;
 namespace Raksawi.Observability;
 
 /// <summary>
-/// Drops every log attribute whose key is not allowlisted, before export
-/// (ADR-0003). The log counterpart to <see cref="AllowlistProcessor"/>, and the
-/// second enforcement point for the "permitted on spans and logs" half of the
-/// Class 2 rule.
+/// Filters log attributes before export, by the allowlist for a service that
+/// set <see cref="RaksawiObservabilityOptions.GovernanceRequired"/> and by the
+/// denylist otherwise (ADR-0043). The log counterpart to
+/// <see cref="AllowlistProcessor"/>.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The denylist is the estate's (<see cref="AllowlistRules.IsDeniedOnLog"/>)
+/// plus the service's own <see cref="RaksawiObservabilityOptions.DeniedLogKeys"/>.
+/// A vocabulary of every field before the first useful log line was what
+/// stopped services adopting this, and most fields are harmless.
+/// </para>
 /// <para>
 /// Structured log properties are span attributes by another name: a service
 /// writing <c>LogInformation("Screened {ApplicationId}", id)</c> produces an
@@ -33,10 +39,33 @@ namespace Raksawi.Observability;
 /// </remarks>
 internal sealed class LogAllowlistProcessor : BaseProcessor<LogRecord>
 {
-    private readonly AttributeAllowlist _allowlist;
+    private readonly Func<string, bool> _keeps;
     private readonly AllowlistDropMetric _dropped = new(AllowlistDropMetric.LogSignal);
 
-    public LogAllowlistProcessor(AttributeAllowlist allowlist) => _allowlist = allowlist;
+    /// <summary>Allowlist mode, for a service that opted into governance.</summary>
+    public LogAllowlistProcessor(AttributeAllowlist allowlist) =>
+        _keeps = key => allowlist.IsAllowed(key, isCouchDbSpan: false);
+
+    private LogAllowlistProcessor(Func<string, bool> keeps) => _keeps = keeps;
+
+    /// <summary>
+    /// Denylist mode: everything except the estate denylist and
+    /// <paramref name="serviceDeniedKeys"/>, compared in canonical form.
+    /// </summary>
+    internal static LogAllowlistProcessor ForDenylist(IEnumerable<string> serviceDeniedKeys)
+    {
+        var denied = new HashSet<string>(
+            serviceDeniedKeys.Select(AllowlistRules.CanonicalLogName), StringComparer.Ordinal);
+
+        return new(key => !AllowlistRules.IsDeniedOnLog(key)
+            && !denied.Contains(AllowlistRules.CanonicalLogName(key)));
+    }
+
+    /// <summary>The mode <paramref name="options"/> asks for.</summary>
+    internal static LogAllowlistProcessor For(RaksawiObservabilityOptions options) =>
+        options.GovernanceRequired
+            ? new LogAllowlistProcessor(AttributeAllowlist.FromLoadedAssemblies())
+            : ForDenylist(options.DeniedLogKeys);
 
     public override void OnEnd(LogRecord data)
     {
@@ -51,7 +80,7 @@ internal sealed class LogAllowlistProcessor : BaseProcessor<LogRecord>
         {
             var attribute = data.Attributes[i];
 
-            if (_allowlist.IsAllowed(attribute.Key, isCouchDbSpan: false))
+            if (_keeps(attribute.Key))
             {
                 kept?.Add(attribute);
                 continue;

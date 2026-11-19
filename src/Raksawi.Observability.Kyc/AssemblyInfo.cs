@@ -4,6 +4,10 @@ using Raksawi.Observability;
 // the analyzer reads these at compile time and AttributeAllowlist reads them at
 // run time, so there is no manifest to drift.
 
+// KYC data is regulated: a KYC service keeps the log allowlist (ADR-0043)
+// whether or not it sets Governance:Required itself.
+[assembly: GovernanceRequired]
+
 // Class 2. Opaque business identifier: permitted on spans and logs, and never
 // as a metric dimension (Rev 3 D2.1 rule 1).
 [assembly: AllowedAttributeKey("application.id", DataClass.OpaqueBusinessIdentifier)]

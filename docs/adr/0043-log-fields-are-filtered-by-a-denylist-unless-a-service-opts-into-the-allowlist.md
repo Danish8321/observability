@@ -4,7 +4,7 @@ Date: 2026-11-19
 
 ## Status
 
-Accepted 2026-11-19 by the plan owner, as written. Not yet implemented.
+Accepted 2026-11-19 by the plan owner, as written. Names (in-process and collector) implemented 2026-11-19; value patterns (slice 2) not yet.
 Deviates from Rev 3 **D2.1** (default-deny classification) for log attributes,
 listed in `README.md#deviations-from-rev-3`. D6a and D7 stay in the plan.
 
