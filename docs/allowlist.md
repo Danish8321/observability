@@ -170,8 +170,25 @@ these (ADR-0043):
   (D9a) emits them. An entry needs no signing: it can only remove data.
 
 These are names, not meanings. A field called `Detail` holding an email
-address passes. The collector's value patterns (ADR-0043, slice 2) are what
-catch that.
+address passes them. What catches it is the collector's value patterns:
+
+## 🔒 Log value patterns — every service
+
+At the collector, on every log record from every service, governed or not
+(ADR-0043). A field's value, or any part of a string body, shaped like one of
+these becomes `[redacted]`; the field itself is kept:
+
+- a card number: 13–19 digits, with optional single spaces or hyphens between;
+- an IBAN: two capital letters, two digits, then 11–30 letters or digits,
+  optionally in groups of four;
+- a JWT: `eyJ….eyJ….…`;
+- an email address.
+
+Shapes, not meaning. A 13-digit-or-longer number is redacted whatever it is,
+including a millisecond timestamp; a name, an address or a national ID passes.
+Collector only: no regex on a request path (ADR-0003). One pattern serves
+attribute values and bodies, and `contract.sh` checks the two copies are equal
+and runs them against the samples a change must not break.
 
 ## Allowed families — on a resource
 

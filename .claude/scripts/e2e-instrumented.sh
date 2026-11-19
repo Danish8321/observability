@@ -227,6 +227,7 @@ done
 # shellcheck disable=SC2086
 MSYS_NO_PATHCONV=1 docker run -d --name "$LEDGER" --network "$NET" \
     -v "$(pwd)/bin/e2e/ledger":/app:ro $SVC_ENV \
+    -e Observability__Logs__DeniedKeys__0=statement_ref \
     -e "Sql__ConnectionString=Server=$SQL;Database=master;User Id=sa;Password=$SQL_PASSWORD;TrustServerCertificate=true" \
     -e ASPNETCORE_URLS=http://0.0.0.0:8080 -p "$LEDGER_PORT":8080 \
     "$RUNTIME_IMAGE" dotnet /app/Ledger.Api.dll >/dev/null
@@ -468,6 +469,24 @@ if echo "$ledgerline" | grep -q '"Email"\|statements@example.test'; then
     failed=1
 else
     echo "  ok      absent  a denylisted log field"
+fi
+
+if echo "$ledgerline" | grep -q '"StatementRef"\|stmt-ref-1'; then
+    echo "  FAILED  LEAKED  a field in the service's own DeniedKeys" >&2
+    failed=1
+else
+    echo "  ok      absent  a field in the service's own DeniedKeys"
+fi
+
+# The value patterns run at the collector: the field stays, its value doesn't.
+if echo "$ledgerline" | grep -q 'copies@example.test'; then
+    echo "  FAILED  LEAKED  an email-shaped value under an innocent name" >&2
+    failed=1
+elif echo "$ledgerline" | grep -q '"Contact","value":{"stringValue":"\[redacted\]"'; then
+    echo "  ok      redacted an email-shaped value, field kept"
+else
+    echo "  FAILED  missing the redacted Contact field" >&2
+    failed=1
 fi
 
 if echo "$ledgerline" | grep -q '"raksawi.governance"'; then

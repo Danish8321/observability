@@ -374,6 +374,43 @@ public sealed class CollectorAllowlistContractTests
     }
 
     [Fact]
+    public void Log_values_and_bodies_are_scanned_with_the_same_patterns()
+    {
+        Assert.Equal(PatternIn("replace_all_patterns(log.attributes, \"value\", \""), PatternIn("replace_pattern(log.body, \""));
+        Assert.EndsWith("where IsString(log.body)", Assert.Single(LogLines("replace_pattern(log.body")).TrimEnd());
+    }
+
+    [Theory]
+    [InlineData("jane.doe@example.com")]
+    [InlineData("sent to ops+kyc@mail.example.co.uk today")]
+    [InlineData("4111111111111111")]
+    [InlineData("4111 1111 1111 1111")]
+    [InlineData("card 4111-1111-1111-1111 declined")]
+    [InlineData("378282246310005")]
+    [InlineData("DK5000400440116243")]
+    [InlineData("DK50 0040 0440 1162 43")]
+    [InlineData("GB82 WEST 1234 5698 7654 32")]
+    [InlineData("Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl")]
+    public void A_sensitive_shaped_value_is_redacted(string value)
+    {
+        Assert.Matches(CollectorValuePattern(), value);
+    }
+
+    [Theory]
+    [InlineData("acc-1")]
+    [InlineData("3f2504e0-4f89-11d3-9a0c-0305e82c3301")]
+    [InlineData("2026-11-19T10:00:00Z")]
+    [InlineData("123456789012")]
+    [InlineData("screening-api")]
+    [InlineData("kyc.applications.submitted")]
+    [InlineData("Balance read for {AccountId}")]
+    [InlineData("4bf92f3577b34da6a3ce929d0e0e4736")]
+    public void An_ordinary_value_is_left_alone(string value)
+    {
+        Assert.DoesNotMatch(CollectorValuePattern(), value);
+    }
+
+    [Fact]
     public void Collector_fails_closed_on_an_erroring_statement()
     {
         // silent or ignore would pass unfiltered attributes through to storage.
@@ -410,6 +447,19 @@ public sealed class CollectorAllowlistContractTests
     /// OTTL string escapes are undone first; the pattern uses nothing on which
     /// RE2 and .NET differ.
     /// </summary>
+    private static System.Text.RegularExpressions.Regex CollectorValuePattern() =>
+        new(PatternIn("replace_all_patterns(log.attributes, \"value\", \""));
+
+    /// <summary>The pattern argument following <paramref name="prefix"/>, OTTL escapes undone.</summary>
+    private static string PatternIn(string prefix)
+    {
+        var line = Assert.Single(LogLines(prefix));
+        var start = line.IndexOf(prefix, StringComparison.Ordinal) + prefix.Length;
+        var end = line.IndexOf("\", \"[redacted]\")", start, StringComparison.Ordinal);
+
+        return line[start..end].Replace("\\\\", "\\", StringComparison.Ordinal);
+    }
+
     private static System.Text.RegularExpressions.Regex CollectorLogDenylist()
     {
         var line = Assert.Single(LogLines("delete_matching_keys"), l => l.Contains("(?i)", StringComparison.Ordinal));

@@ -25,9 +25,13 @@ var app = builder.Build();
 app.MapGet("/balances/{account}", async (string account, ILogger<Program> logger, CancellationToken cancellationToken) =>
 {
     // Not a KYC service, so its log fields are filtered by the denylist
-    // (ADR-0043): AccountId arrives with nothing declared, and Email, an
-    // estate-denylisted name, is dropped before it leaves the process.
-    logger.LogInformation("Balance read for {AccountId}; statement to {Email}", account, "statements@example.test");
+    // (ADR-0043): AccountId arrives with nothing declared; Email, an
+    // estate-denylisted name, is dropped in-process; StatementRef is dropped
+    // if this service lists it in Observability:Logs:DeniedKeys; and Contact
+    // is kept with its email-shaped value redacted by the collector.
+    logger.LogInformation(
+        "Balance read for {AccountId}; statement to {Email}, copy to {Contact}, ref {StatementRef}",
+        account, "statements@example.test", "copies@example.test", "stmt-ref-1");
 
     await using var connection = new SqlConnection(connectionString);
     await connection.OpenAsync(cancellationToken);

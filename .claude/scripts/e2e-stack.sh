@@ -80,9 +80,10 @@ send logs '{"resourceLogs":[{"resource":'"$resource"',"scopeLogs":[{"logRecords"
 # filter, and that filter is the denylist (ADR-0043).
 send logs '{"resourceLogs":[{"resource":'"$open_resource"',"scopeLogs":[{"logRecords":[{
   "timeUnixNano":"'"$now"'","severityText":"Information",
-  "body":{"stringValue":"open check '"$RUN"'"},
+  "body":{"stringValue":"open check '"$RUN"' mailed jane-'"$RUN"'@example.com"},
   "attributes":[
     {"key":"AccountId","value":{"stringValue":"acct-'"$RUN"'"}},
+    {"key":"Detail","value":{"stringValue":"card 4111 1111 1111 1111"}},
     {"key":"Password","value":{"stringValue":"'"$CANARY"'-pw"}}]}]}]}]}'
 
 send metrics '{"resourceMetrics":[{"resource":'"$resource"',"scopeMetrics":[{"metrics":[{
@@ -137,6 +138,12 @@ if open="$(poll Loki "http://localhost:3100/loki/api/v1/query_range?start=$start
     case "$open" in
         *"$CANARY-pw"*) echo "  FAILED  LEAKED  a denylisted field reached Loki" >&2; failed=1 ;;
         *) echo "  ok      dropped a denylisted field before Loki" ;;
+    esac
+    case "$open" in
+        *"jane-$RUN@example.com"*|*"4111 1111"*)
+            echo "  FAILED  LEAKED  an email or card value reached Loki" >&2; failed=1 ;;
+        *"[redacted]"*) echo "  ok      redacted email and card values before Loki" ;;
+        *) echo "  FAILED  missing the [redacted] values" >&2; failed=1 ;;
     esac
 else
     failed=1
