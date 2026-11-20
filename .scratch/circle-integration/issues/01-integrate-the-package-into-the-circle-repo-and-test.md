@@ -179,3 +179,19 @@ its own risky names to `Observability:Logs:DeniedKeys`, e.g. `RawStatus`,
 `ProviderDetail`; `{To}` and `{Body}` are on the estate denylist. Friction 4
 stays open until the implementation lands. Span attributes circle sets itself
 are not covered by ADR-0043 and are unchecked.
+
+### 2026-11-20 — friction 4 resolved
+
+ADR-0043 landed (`d3a0851` names, `3af6cb4` value patterns), and the packages
+were packed as `2.0.0-preview.4`. Circle runs on preview.4 with no vocabulary
+pack and no `Governance:Required`, so its logs take the denylist. Run against
+the local stack (the spike database recreated with circle's
+`schema.sh apply`; dummy `IFSClient__*` and mail settings), three account
+requests were made. Loki returned circle's request log with every field it
+sets: `RequestMethod`, `RequestPath`, `StatusCode`, `Elapsed`, `AccountId`,
+plus `SourceContext`, `CorrelationId`, `ExceptionType` and `Code` on the
+domain exception log. That check was a manual Loki query; no script asserts
+on circle.
+
+One false positive: Serilog's `ParentId` on a root span is
+`0000000000000000`, which the card-number pattern redacts.

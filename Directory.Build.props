@@ -12,7 +12,7 @@
   <!-- One release line: 2.0.0-preview.N until 2.0.0, no 1.x (plan, "Starting point"). -->
   <PropertyGroup>
     <VersionPrefix>2.0.0</VersionPrefix>
-    <VersionSuffix>preview.3</VersionSuffix>
+    <VersionSuffix>preview.4</VersionSuffix>
   </PropertyGroup>
 
   <PropertyGroup>
